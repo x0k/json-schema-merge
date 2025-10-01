@@ -1,5 +1,11 @@
 # @x0k/json-schema-merge
 
+## 1.0.2
+
+### Patch Changes
+
+- [`20bceca`](https://github.com/x0k/json-schema-merge/commit/20bcecac745b2afae1bcd88e353f948a28d594ec) Thanks [@x0k](https://github.com/x0k)! - Enable source maps for better debugging
+
 ## 1.0.1
 
 ### Patch Changes
