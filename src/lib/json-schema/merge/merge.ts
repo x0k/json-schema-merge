@@ -5,7 +5,6 @@ import type {
   JSONSchema7TypeName,
 } from "json-schema";
 
-import { getValueByKeys, insertValue, type Trie } from "../../trie.ts";
 import {
   intersection,
   union,
@@ -69,16 +68,16 @@ function createRecordsMerge<T>(merge: (l: T, r: T) => T) {
  */
 export type Assigner<R extends {}> = (target: R, l: R, r: R) => R;
 
-function createAssignersTrie(
+function createAssignersMap(
   assigners: Iterable<[SchemaKey[], Assigner<JSONSchema7>]>
 ) {
-  let trie: Trie<string, Assigner<JSONSchema7>> = undefined;
+  const map = new Map<SchemaKey, Assigner<JSONSchema7>>();
   for (const pair of assigners) {
     for (const key of pair[0]) {
-      trie = insertValue(trie, key, pair[1]);
+      map.set(key, pair[1]);
     }
   }
-  return trie;
+  return map;
 }
 
 function assignSchemaDefinitionOrRecordOfSchemaDefinitions<
@@ -586,7 +585,7 @@ export function createMerger({
     );
   }
 
-  const ASSIGNERS_TRIE = createAssignersTrie([
+  const ASSIGNERS_MAP = createAssignersMap([
     [PROPERTIES_ASSIGNER_KEYS, propertiesAssigner],
     [ITEMS_ASSIGNER_KEYS, itemsAssigner],
     [CONDITION_ASSIGNER_KEYS, conditionAssigner],
@@ -625,7 +624,7 @@ export function createMerger({
         target[rKey] = rv;
         continue;
       }
-      const assign = getValueByKeys(ASSIGNERS_TRIE, rKey);
+      const assign = ASSIGNERS_MAP.get(rKey);
       if (assign) {
         assigners.add(assign);
         continue;
