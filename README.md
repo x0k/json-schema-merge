@@ -80,6 +80,19 @@ export type Merger<T> = (a: T, b: T) => T;
  */
 export type Assigner<R extends {}> = (target: R, l: R, r: R) => R;
 
+/**
+ * A validation function that ensures consistency between two schema keywords.
+ */
+export type Check<K extends SchemaKey> = (
+  target: Required<Pick<JSONSchema7, K>>
+) => boolean;
+
+export type CheckEntry<A extends SchemaKey, B extends SchemaKey> = readonly [
+  A,
+  B,
+  Check<A | B>,
+];
+
 export interface MergeOptions {
   /**
    * Custom function to test whether a regular expression `subExpr`
@@ -116,6 +129,7 @@ export interface MergeOptions {
    * A mapping of schema keywords to merger functions.
    *
    * - A merger operates on **values of a single keyword** (`a`, `b` → merged value).
+   * - When provided, a custom merger **overrides the default merger** for that keyword.
    */
   mergers?: Partial<{
     [K in SchemaKey]: Merger<Exclude<JSONSchema7[K], undefined>>;
@@ -125,8 +139,21 @@ export interface MergeOptions {
    * A collection of keyword groups with associated assigner functions.
    *
    * - An assigner operates at the **schema-object level** (`target`, `left`, `right`).
+   * - Custom assigners are **appended** to the default assigners,
+   *   but can also **replace behavior** for specific keywords if they overlap.
    */
   assigners?: Iterable<[SchemaKey[], Assigner<JSONSchema7>]>;
+
+  /**
+   * Consistency checks to validate relationships between
+   * pairs of schema keywords (e.g. `minimum` ≤ `maximum`).
+   *
+   * - A check ensures that two related keywords do not conflict.
+   * - Providing this option **replaces the default checks** completely.
+   *
+   * @default DEFAULT_CHECKS
+   */
+  checks?: Iterable<CheckEntry<SchemaKey, SchemaKey>>;
 }
 ```
 
@@ -147,6 +174,7 @@ It can be used as a drop-in alternative with the following differences:
 - Support for merging `number` and `integer` types
 - Support for merging `if`, `then` and `else` keywords
 - Fixed merging of regular expressions (see [comparison test](./src/lib/json-schema/merge/patterns.test.ts))
+- Built-in schema consistency checks (e.g. `minimum` ≤ `maximum`)
 
 ## License
 

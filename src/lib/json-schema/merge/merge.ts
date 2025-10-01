@@ -68,11 +68,9 @@ function createRecordsMerge<T>(merge: (l: T, r: T) => T) {
  */
 export type Assigner<R extends {}> = (target: R, l: R, r: R) => R;
 
-function createAssignersMap(
-  assigners: Iterable<[SchemaKey[], Assigner<JSONSchema7>]>
-) {
-  const map = new Map<SchemaKey, Assigner<JSONSchema7>>();
-  for (const pair of assigners) {
+function createMap<R>(items: Iterable<[SchemaKey[], R]>) {
+  const map = new Map<SchemaKey, R>();
+  for (const pair of items) {
     for (const key of pair[0]) {
       map.set(key, pair[1]);
     }
@@ -206,6 +204,55 @@ function intersectSchemaTypes(
  */
 export type Merger<T> = (a: T, b: T) => T;
 
+/**
+ * A validation function that ensures consistency between two schema keywords.
+ */
+export type Check<K extends SchemaKey> = (
+  target: Required<Pick<JSONSchema7, K>>
+) => boolean;
+
+export type CheckEntry<A extends SchemaKey, B extends SchemaKey> = readonly [
+  A,
+  B,
+  Check<A | B>,
+];
+
+export function check<A extends SchemaKey, B extends SchemaKey>(
+  a: A,
+  b: B,
+  check: Check<A | B>
+): CheckEntry<A, B> {
+  return [a, b, check];
+}
+
+function createChecksMap(checks: Iterable<CheckEntry<SchemaKey, SchemaKey>>) {
+  const map = new Map<
+    SchemaKey,
+    { oppositeKey: SchemaKey; check: (target: JSONSchema7) => void }[]
+  >();
+  for (const [a, b, check] of checks) {
+    const fn = (target: JSONSchema7) => {
+      if (!check(target as any)) {
+        throw new Error(
+          `Schema keys '${a}' and '${b}' are conflicting (${a}: ${JSON.stringify(target[a])}, ${b}: ${JSON.stringify(target[b])})`
+        );
+      }
+    };
+    for (const k of [
+      [a, b],
+      [b, a],
+    ]) {
+      let arr = map.get(k[0]);
+      if (arr === undefined) {
+        arr = [];
+        map.set(k[0], arr);
+      }
+      arr.push({ oppositeKey: k[1], check: fn });
+    }
+  }
+  return map;
+}
+
 export interface MergeOptions {
   /**
    * Custom function to test whether a regular expression `subExpr`
@@ -242,6 +289,7 @@ export interface MergeOptions {
    * A mapping of schema keywords to merger functions.
    *
    * - A merger operates on **values of a single keyword** (`a`, `b` → merged value).
+   * - When provided, a custom merger **overrides the default merger** for that keyword.
    */
   mergers?: Partial<{
     [K in SchemaKey]: Merger<Exclude<JSONSchema7[K], undefined>>;
@@ -251,9 +299,40 @@ export interface MergeOptions {
    * A collection of keyword groups with associated assigner functions.
    *
    * - An assigner operates at the **schema-object level** (`target`, `left`, `right`).
+   * - Custom assigners are **appended** to the default assigners,
+   *   but can also **replace behavior** for specific keywords if they overlap.
    */
   assigners?: Iterable<[SchemaKey[], Assigner<JSONSchema7>]>;
+
+  /**
+   * Consistency checks to validate relationships between
+   * pairs of schema keywords (e.g. `minimum` ≤ `maximum`).
+   *
+   * - A check ensures that two related keywords do not conflict.
+   * - Providing this option **replaces the default checks** completely.
+   *
+   * @default DEFAULT_CHECKS
+   */
+  checks?: Iterable<CheckEntry<SchemaKey, SchemaKey>>;
 }
+
+export const DEFAULT_CHECKS = [
+  check("minimum", "maximum", (t) => t.maximum >= t.minimum),
+  check("exclusiveMinimum", "maximum", (t) => t.maximum > t.exclusiveMinimum),
+  check("minimum", "exclusiveMaximum", (t) => t.exclusiveMaximum > t.minimum),
+  check(
+    "exclusiveMinimum",
+    "exclusiveMaximum",
+    (t) => t.exclusiveMaximum > t.exclusiveMinimum
+  ),
+  check("minLength", "maxLength", (t) => t.maxLength >= t.minLength),
+  check("minItems", "maxItems", (t) => t.maxItems >= t.minItems),
+  check(
+    "minProperties",
+    "maxProperties",
+    (t) => t.maxProperties >= t.minProperties
+  ),
+];
 
 export function createMerger({
   mergePatterns = simplePatternsMerger,
@@ -262,6 +341,7 @@ export function createMerger({
   deduplicateJsonSchemaDef = identity,
   defaultMerger = identity,
   assigners = [],
+  checks = DEFAULT_CHECKS,
   mergers,
 }: MergeOptions = {}) {
   function mergeArrayOfSchemaDefinitions(
@@ -585,12 +665,14 @@ export function createMerger({
     );
   }
 
-  const ASSIGNERS_MAP = createAssignersMap([
+  const ASSIGNERS_MAP = createMap([
     [PROPERTIES_ASSIGNER_KEYS, propertiesAssigner],
     [ITEMS_ASSIGNER_KEYS, itemsAssigner],
     [CONDITION_ASSIGNER_KEYS, conditionAssigner],
     ...assigners,
   ]);
+
+  const CHECKS_MAP = createChecksMap(checks);
 
   function mergeSchemaDefinitions(
     left: JSONSchema7Definition,
@@ -610,6 +692,7 @@ export function createMerger({
     }
     let target = { ...left };
     const assigners = new Set<Assigner<JSONSchema7>>();
+    const checks = new Set<(target: JSONSchema7) => void>();
     const rKeys = Object.keys(right) as SchemaKey[];
     const l = rKeys.length;
     for (let i = 0; i < l; i++) {
@@ -617,6 +700,16 @@ export function createMerger({
       const rv = right[rKey];
       if (rv === undefined) {
         continue;
+      }
+      const checkData = CHECKS_MAP.get(rKey);
+      if (checkData !== undefined) {
+        const l = checkData.length;
+        for (let j = 0; j < l; j++) {
+          const item = checkData[j];
+          if (left[item.oppositeKey] !== undefined) {
+            checks.add(item.check);
+          }
+        }
       }
       const lv = left[rKey];
       if (lv === undefined) {
@@ -635,6 +728,9 @@ export function createMerger({
     }
     for (const assign of assigners) {
       target = assign(target, left, right);
+    }
+    for (const check of checks) {
+      check(target);
     }
     return target;
   }
