@@ -232,7 +232,7 @@ function createChecksMap(checks: Iterable<CheckEntry<SchemaKey, SchemaKey>>) {
   >();
   for (const [a, b, check] of checks) {
     const fn = (target: JSONSchema7) => {
-      if (!check(target as any)) {
+      if (!check(target as Required<JSONSchema7>)) {
         throw new Error(
           `Schema keys '${a}' and '${b}' are conflicting (${a}: ${JSON.stringify(target[a])}, ${b}: ${JSON.stringify(target[b])})`
         );
