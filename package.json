@@ -1,6 +1,6 @@
 {
   "name": "@x0k/json-schema-merge",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A minimal JSON Schema merging library.",
   "type": "module",
   "license": "MIT",
