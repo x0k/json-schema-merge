@@ -68,6 +68,9 @@ export function createArrayComparator<T>(compare: (a: T, b: T) => number) {
   };
 }
 
+/**
+ * Function type for removing duplicates from an array.
+ */
 export type Deduplicator<T> = (data: T[]) => T[];
 
 export interface DeduplicatorOptions {
@@ -116,6 +119,9 @@ export function createDeduplicator<T>(
   };
 }
 
+/**
+ * Function type for intersecting two arrays of the same type.
+ */
 export type Intersector<T> = (a: T[], b: T[]) => T[];
 
 export function createIntersector<T>(compare: Comparator<T>): Intersector<T> {

@@ -14,7 +14,7 @@ import {
 } from "../../array.ts";
 import { identity } from "../../function.ts";
 import { lcm } from "../../math.ts";
-import { isAllowAnySchema } from '../json-schema.ts';
+import { isAllowAnySchema } from "../json-schema.ts";
 
 import { simplePatternsMerger } from "./patterns.ts";
 
@@ -55,6 +55,18 @@ function createRecordsMerge<T>(merge: (l: T, r: T) => T) {
   };
 }
 
+/**
+ * An assigner function operates at the schema-object level.
+ * It receives the partially merged `target` and the original
+ * `left` and `right` schemas.
+ *
+ * In most cases, it modifies and returns the `target` object,
+ * but it may also return a completely new schema object if needed.
+ *
+ * Assigners are used for keywords that cannot be merged by simple
+ * value-level functions, often because they interact with other
+ * keywords or require holistic decisions.
+ */
 export type Assigner<R extends {}> = (target: R, l: R, r: R) => R;
 
 function createAssignersTrie(
@@ -190,17 +202,57 @@ function intersectSchemaTypes(
   }
 }
 
+/**
+ * A merger function combines two values for a specific JSON Schema keyword.
+ */
 export type Merger<T> = (a: T, b: T) => T;
 
 export interface MergeOptions {
+  /**
+   * Custom function to test whether a regular expression `subExpr`
+   * is considered a subset of another `superExpr`.
+   * @default Object.is
+   */
   isSubRegExp?: (subExpr: string, superExpr: string) => boolean;
+
+  /**
+   * Merger function for combining regular expression patterns
+   * @default simplePatternsMerger
+   */
   mergePatterns?: Merger<string>;
+
+  /**
+   * Intersector function for merging JSON values (enum keyword)
+   * @default intersection
+   */
   intersectJson?: Intersector<JSONSchema7Type>;
+
+  /**
+   * Deduplication strategy for JSON Schema definitions.
+   * @default identity
+   */
   deduplicateJsonSchemaDef?: Deduplicator<JSONSchema7Definition>;
+
+  /**
+   * Fallback merger applied when no keyword-specific merger is defined.
+   * @default identity
+   */
   defaultMerger?: Merger<any>;
+
+  /**
+   * A mapping of schema keywords to merger functions.
+   *
+   * - A merger operates on **values of a single keyword** (`a`, `b` → merged value).
+   */
   mergers?: Partial<{
     [K in SchemaKey]: Merger<Exclude<JSONSchema7[K], undefined>>;
   }>;
+
+  /**
+   * A collection of keyword groups with associated assigner functions.
+   *
+   * - An assigner operates at the **schema-object level** (`target`, `left`, `right`).
+   */
   assigners?: Iterable<[SchemaKey[], Assigner<JSONSchema7>]>;
 }
 
@@ -665,7 +717,9 @@ export function createMerger({
       const data = intersectJson(a, b);
       if (data.length === 0) {
         throw new Error(
-          `Intersection of the following enums is empty: "${JSON.stringify(a)}", "${JSON.stringify(b)}"`
+          `Intersection of the following enums is empty: "${JSON.stringify(
+            a
+          )}", "${JSON.stringify(b)}"`
         );
       }
       return data;
@@ -691,7 +745,9 @@ export function createMerger({
       // https://datatracker.ietf.org/doc/html/draft-handrews-json-schema-validation-01#section-10.4
       if (!Array.isArray(l) || !Array.isArray(r)) {
         throw new Error(
-          `Value of the 'examples' field should be an array, but got "${JSON.stringify(l)}" and "${JSON.stringify(r)}"`
+          `Value of the 'examples' field should be an array, but got "${JSON.stringify(
+            l
+          )}" and "${JSON.stringify(r)}"`
         );
       }
       // TODO: Proper deduplication

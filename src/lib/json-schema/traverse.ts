@@ -16,7 +16,7 @@ export type SchemaTraverserContextType = "array" | "record" | "sub" | "root";
 
 export interface AbstractSchemaTraverserContext<
   T extends SchemaTraverserContextType,
-  K extends AnySubSchemaKey
+  K extends AnySubSchemaKey,
 > {
   type: T;
   path: SubSchemasArrayKey extends K ? Array<string | number> : string[];
