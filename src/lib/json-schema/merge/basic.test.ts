@@ -440,7 +440,7 @@ describe("basic", () => {
       });
 
       expect(result).toEqual({
-        enum: ["string", {}, [1]],
+        enum: ["string", [1], {}],
       });
     });
 

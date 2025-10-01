@@ -36,9 +36,9 @@ export function intersection<T>(a: T[], b: T[]): T[] {
   }
 
   const setB = new Set(b);
-  for (let i = 0; i < a.length; i++) {
+  for (let i = 0; i < a.length && setB.size > 0; i++) {
     const val = a[i]!;
-    if (setB.has(val)) {
+    if (setB.delete(val)) {
       result.push(val);
     }
   }
@@ -118,9 +118,7 @@ export function createDeduplicator<T>(
 
 export type Intersector<T> = (a: T[], b: T[]) => T[];
 
-export function createIntersector<T>(
-  compare: Comparator<T>,
-): Intersector<T> {
+export function createIntersector<T>(compare: Comparator<T>): Intersector<T> {
   return (a, b) => {
     const result: T[] = [];
     let al = a.length;
