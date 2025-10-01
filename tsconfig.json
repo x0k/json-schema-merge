@@ -15,7 +15,9 @@
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "sourceMap": true,
+    "declarationMap": true
   },
   "include": ["src"],
   "exclude": ["**/*.test.*", "**/*.spec.*", "**/*.bench.*"]
