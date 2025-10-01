@@ -11,6 +11,12 @@ ben:
 b:
   pnpm run build $@
 
+l:
+  pnpm run lint $@
+
+f:
+  pnpm run format $@
+
 c:
   pnpm run check $@
 

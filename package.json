@@ -32,8 +32,11 @@
     "build": "tsc && publint",
     "test": "vitest run --exclude '.direnv/**'",
     "bench": "vitest bench --exclude '.direnv/**'",
-    "check": "tsc --noEmit",
-    "ci:build": "npm run test && npm run build",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "lint": "prettier --check .",
+    "check": "npm run lint && npm run typecheck && npm run test",
+    "ci:build": "npm run check && npm run build",
     "ci:version": "changeset version && pnpm install --no-frozen-lockfile"
   },
   "devDependencies": {
@@ -45,6 +48,7 @@
     "allof-merge": "^0.6.7",
     "json-schema-compare": "^0.2.2",
     "json-schema-merge-allof": "^0.8.1",
+    "prettier": "^3.6.2",
     "publint": "^0.3.13",
     "tsdown": "^0.15.6",
     "typescript": "^5.9.3",
