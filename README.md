@@ -1,10 +1,18 @@
-# JSON Schema merge
+# json-schema-merge
 
-A minimal JSON Schema merging library.
+A library for merging **JSON Schema Draft-07** definitions with no runtime dependencies.
 
 ```shell
 npm i @x0k/json-schema-merge
 ```
+
+**Features**:
+
+- Ordering comparison for JSON values
+- Ordering comparison for JSON Schemas
+- JSON Schema merging (customizable)
+- Shallow merging of the `allOf` keyword in JSON Schemas
+- Deep merging of the `allOf` keyword in JSON Schemas
 
 **Goals**
 
@@ -14,7 +22,6 @@ npm i @x0k/json-schema-merge
 **Non-goals**
 
 - Support for drafts other than Draft-07
-- Deep merging of the `allOf` keyword (possible, but not super-optimal)
 - Handling invalid or incorrect JSON Schemas (the merge result is undefined)
 - Resolving `$ref` references (see [json-schema-ref-parser](https://github.com/APIDevTools/json-schema-ref-parser))
 
