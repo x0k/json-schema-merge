@@ -10,7 +10,7 @@ npm i @x0k/json-schema-merge
 
 - Ordering comparison for JSON values
 - Ordering comparison for JSON Schemas
-- JSON Schema merging (customizable)
+- JSON Schema merging
 - Shallow merging of the `allOf` keyword in JSON Schemas
 - Deep merging of the `allOf` keyword in JSON Schemas
 
