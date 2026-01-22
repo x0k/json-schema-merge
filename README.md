@@ -14,7 +14,7 @@ npm i @x0k/json-schema-merge
 **Non-goals**
 
 - Support for drafts other than Draft-07
-- Deep merging of the `allOf` keyword (possible, but not optimal)
+- Deep merging of the `allOf` keyword (possible, but not super-optimal)
 - Handling invalid or incorrect JSON Schemas (the merge result is undefined)
 - Resolving `$ref` references (see [json-schema-ref-parser](https://github.com/APIDevTools/json-schema-ref-parser))
 
@@ -29,11 +29,17 @@ import {
   createMerger,
   createComparator,
   createShallowAllOfMerge,
+  // Use to merge nested `allOf`
+  createDeepAllOfMerge,
 } from "@x0k/json-schema-merge";
 
 const { compareSchemaDefinitions, compareSchemaValues } = createComparator();
 
-const { mergeArrayOfSchemaDefinitions } = createMerger({
+const {
+  mergeArrayOfSchemaDefinitions,
+  // Use to merge two `JSONSchema7Definition`
+  mergeSchemaDefinitions,
+} = createMerger({
   intersectJson: createIntersector(compareSchemaValues),
   deduplicateJsonSchemaDef: createDeduplicator(compareSchemaDefinitions),
 });
