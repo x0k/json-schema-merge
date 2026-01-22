@@ -45,19 +45,18 @@
     "ci:version": "changeset version && pnpm install --no-frozen-lockfile"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.5.1",
-    "@changesets/cli": "^2.29.7",
+    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/cli": "^2.29.8",
     "@types/json-schema-compare": "^0.2.4",
     "@types/json-schema-merge-allof": "^0.6.5",
     "ajv": "^8.17.1",
     "allof-merge": "^0.6.7",
     "json-schema-compare": "^0.2.2",
     "json-schema-merge-allof": "^0.8.1",
-    "prettier": "^3.6.2",
-    "publint": "^0.3.13",
-    "tsdown": "^0.15.6",
+    "prettier": "^3.8.1",
+    "publint": "^0.3.17",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.0.17"
   },
   "dependencies": {
     "@types/json-schema": "^7.0.15"
