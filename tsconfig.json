@@ -15,6 +15,7 @@
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
+    "rootDir": "./src",
     "outDir": "dist",
     "sourceMap": true,
     "declarationMap": true
