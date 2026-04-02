@@ -1,5 +1,11 @@
 # @x0k/json-schema-merge
 
+## 1.0.3
+
+### Patch Changes
+
+- [`6ce4639`](https://github.com/x0k/json-schema-merge/commit/6ce4639990893b969dbda149a658941b12ff22d2) Thanks [@x0k](https://github.com/x0k)! - Filter out incompatible `oneOf/anyOf` combinations during schema merging instead of throwing an error; only throw if no valid combinations remain.
+
 ## 1.0.2
 
 ### Patch Changes
