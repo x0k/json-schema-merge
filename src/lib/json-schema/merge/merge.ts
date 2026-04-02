@@ -19,7 +19,7 @@ import { simplePatternsMerger } from "./patterns.ts";
 
 type SchemaKey = keyof JSONSchema7;
 
-function* createPairCombinations<T, R>(
+function createPairCombinations<T, R>(
   l: T[],
   r: T[],
   action: (a: T, b: T) => R
@@ -30,7 +30,7 @@ function* createPairCombinations<T, R>(
     for (let i = 0; i < ll; i++) {
       const lv = l[i]!;
       for (let j = 0; j < rl; j++) {
-        yield action(lv, r[j]!);
+        action(lv, r[j]!);
       }
     }
   }
@@ -537,25 +537,18 @@ export function createMerger({
     let patterns: Record<string, JSONSchema7Definition> = {};
     const matchedPatterns = new Set<string>();
     if (lPatternKeys.length > 0 && rPatternKeys.length > 0) {
-      const gen = createPairCombinations(
-        lPatternKeys,
-        rPatternKeys,
-        (lKey, rKey) => {
-          if (isSubRegExp(lKey, rKey)) {
-            matchedPatterns.add(lKey);
-          }
-          if (isSubRegExp(rKey, lKey)) {
-            matchedPatterns.add(rKey);
-          }
-          patterns[mergePatterns(lKey, rKey)] = mergeSchemaDefinitions(
-            lPatterns![lKey]!,
-            rPatterns![rKey]!
-          );
+      createPairCombinations(lPatternKeys, rPatternKeys, (lKey, rKey) => {
+        if (isSubRegExp(lKey, rKey)) {
+          matchedPatterns.add(lKey);
         }
-      );
-      while (!gen.next().done) {
-        /* empty */
-      }
+        if (isSubRegExp(rKey, lKey)) {
+          matchedPatterns.add(rKey);
+        }
+        patterns[mergePatterns(lKey, rKey)] = mergeSchemaDefinitions(
+          lPatterns![lKey]!,
+          rPatterns![rKey]!
+        );
+      });
     }
     patterns = assignPatternPropertiesAndAdditionalPropertiesMerge(
       patterns,
@@ -660,9 +653,18 @@ export function createMerger({
     l: JSONSchema7Definition[],
     r: JSONSchema7Definition[]
   ) {
-    return deduplicateJsonSchemaDef(
-      Array.from(createPairCombinations(l, r, mergeSchemaDefinitions))
-    );
+    const definitions: JSONSchema7Definition[] = [];
+    createPairCombinations(l, r, (a, b) => {
+      try {
+        definitions.push(mergeSchemaDefinitions(a, b));
+      } catch {}
+    });
+    if (definitions.length === 0) {
+      throw new Error(
+        `No valid schema combinations could be produced for "${JSON.stringify(l)}" and "${JSON.stringify(r)}"; the merged result is empty`
+      );
+    }
+    return deduplicateJsonSchemaDef(definitions);
   }
 
   const ASSIGNERS_MAP = createMap([
@@ -762,15 +764,12 @@ export function createMerger({
       } else if (isAArr || isBArr) {
         const r = new Set<JSONSchema7TypeName>();
         if (isAArr && isBArr) {
-          for (const intersection of createPairCombinations(
-            a,
-            b,
-            intersectSchemaTypes
-          )) {
-            if (intersection !== undefined) {
-              r.add(intersection);
+          createPairCombinations(a, b, (x, y) => {
+            const type = intersectSchemaTypes(x, y);
+            if (type !== undefined) {
+              r.add(type);
             }
-          }
+          });
         } else {
           const arr = (isAArr ? a : b) as JSONSchema7TypeName[];
           const el = (isAArr ? b : a) as JSONSchema7TypeName;
