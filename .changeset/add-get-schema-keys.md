@@ -1,5 +1,5 @@
 ---
-"@x0k/json-schema-merge": minor
+"@x0k/json-schema-merge": patch
 ---
 
-Add `getSchemaKeys` option to `createMerger` for customizing key enumeration during schema merge (e.g. use `Reflect.ownKeys` to preserve symbol-keyed extension properties)
+Preserve symbol-keyed extension properties during schema merge
