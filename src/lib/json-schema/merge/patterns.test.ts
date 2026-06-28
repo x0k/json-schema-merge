@@ -657,6 +657,608 @@ const cases: TestCase[] = [
       },
     ],
   },
+  {
+    name: "Merging two merged patterns (nested lookaheads)",
+    left: "(?=.*\\d)(?=.*[a-z]+)",
+    right: "(?=.*[A-Z]+)",
+    data: [
+      {
+        value: "abc123ABC",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: true,
+        },
+      },
+      {
+        value: "abc123",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "abcABC",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "123ABC",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Identical patterns (fast path)",
+    left: "\\d+",
+    right: "\\d+",
+    data: [
+      {
+        value: "abc123",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: true,
+        },
+      },
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Both empty patterns",
+    left: "",
+    right: "",
+    data: [
+      {
+        value: "anything",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: true,
+        },
+      },
+      {
+        value: "",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: true,
+        },
+      },
+    ],
+  },
+  {
+    name: "Pattern that matches everything",
+    left: ".*",
+    right: "\\d+",
+    data: [
+      {
+        value: "123",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: true,
+        },
+      },
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Groups vs raw alternation",
+    left: "(cat|dog)",
+    right: "cat|dog",
+    data: [
+      {
+        value: "cat",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: true,
+        },
+      },
+      {
+        value: "dog",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: true,
+        },
+      },
+      {
+        value: "bird",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Nested groups",
+    left: "((abc))",
+    right: "(def)",
+    data: [
+      {
+        value: "abcdef",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "def",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "xyz",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Multiple lookaheads as input",
+    left: "(?=.*a)(?=.*b)",
+    right: "(?=.*c)",
+    data: [
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: true,
+        },
+      },
+      {
+        value: "ab",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "ac",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "bc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Both inputs with ^ anchor (conflict at position 0)",
+    left: "^abc",
+    right: "^def",
+    data: [
+      {
+        value: "abcdef",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "defabc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "def",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Both inputs with $ anchor (conflict at end-of-string)",
+    left: "abc$",
+    right: "def$",
+    data: [
+      {
+        value: "xyzabc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "xyzdef",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "def",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Both inputs with ^...$ (exact match conflict)",
+    left: "^abc$",
+    right: "^def$",
+    data: [
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "def",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "abcdef",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Re-merging a result that has anchors",
+    left: "(?=.*(?:^a))(?=.*(?:b))",
+    right: "c",
+    data: [
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "bc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "ac",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "ab",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "One ^...$ + one unanchored (impossible combination)",
+    left: "^start$",
+    right: "\\d+",
+    data: [
+      {
+        value: "start123",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "start",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "123",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "123start",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Both ^ anchors (compatible prefix)",
+    left: "^abc",
+    right: "^abcdef",
+    data: [
+      {
+        value: "abcdefxyz",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: true,
+        },
+      },
+      {
+        value: "abcdef",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: true,
+        },
+      },
+      {
+        value: "abcxyz",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "Both $ anchors (compatible suffix)",
+    left: "abc$",
+    right: "xyzabc$",
+    data: [
+      {
+        value: "xyzabc",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "xyzabc123",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "^ anchor + unanchored (compatible)",
+    left: "^start",
+    right: "\\d+",
+    data: [
+      {
+        value: "start123",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "123start",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "start",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "$ anchor + unanchored (compatible)",
+    left: "end$",
+    right: "\\d+",
+    data: [
+      {
+        value: "123end",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "end123",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "end",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "^...$ with wildcard + unanchored",
+    left: "^prefix.*end$",
+    right: "xre",
+    data: [
+      {
+        value: "prefix_xre_end",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "prefixrend",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "prefix_end",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "xreprefixend",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "prefixend",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
+  {
+    name: "$ in left + ^ in right (reverse anchors)",
+    left: "abc$",
+    right: "^def",
+    data: [
+      {
+        value: "defabc",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "defXXXabc",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "abcdef",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "abc",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "def",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
 ];
 
 describe("Pattern Mergers", () => {
