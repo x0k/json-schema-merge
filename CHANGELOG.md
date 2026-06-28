@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- [`3527cc9`](https://github.com/x0k/json-schema-merge/commit/3527cc9856a1929ce8669e6bc4d6522052317043) Thanks [@x0k](https://github.com/x0k)! - Preserve symbol-keyed extension properties during schema merge
+- [`f506c46`](https://github.com/x0k/json-schema-merge/commit/f506c46694642d1550945b054b6abfb71d8235c4) Thanks [@x0k](https://github.com/x0k)! - Preserve symbol-keyed extension properties during schema merge
 
 - [`1645dcf`](https://github.com/x0k/json-schema-merge/commit/1645dcf6cb66692917f72ba0ee5ed4abd504e728) Thanks [@x0k](https://github.com/x0k)! - Simplify output of `simplePatternsMerger`
 
