@@ -55,9 +55,7 @@ const shallowAllOfMerge = createShallowAllOfMerge(
   mergeArrayOfSchemaDefinitions
 );
 
-const merged = shallowAllOfMerge({
-  /* your schema with `allOf` keyword */
-});
+const merged = shallowAllOfMerge({/* your schema with `allOf` keyword */});
 ```
 
 ### Options

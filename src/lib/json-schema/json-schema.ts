@@ -98,8 +98,7 @@ export type TransformedSchema<R, S> = Omit<S, AnySubSchemaKey> & {
 };
 
 export type TransformedSchemaDefinition<R, S> =
-  | TransformedSchema<R, S>
-  | boolean;
+  TransformedSchema<R, S> | boolean;
 
 export function isSchemaObject<D extends JSONSchema7Definition>(
   schemaDef: D
