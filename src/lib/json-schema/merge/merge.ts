@@ -314,6 +314,16 @@ export interface MergeOptions {
    * @default DEFAULT_CHECKS
    */
   checks?: Iterable<CheckEntry<SchemaKey, SchemaKey>>;
+
+  /**
+   * Function used to enumerate schema keys during merge.
+   *
+   * - By default only string keys are iterated (`Object.keys`).
+   * - Set to `Reflect.ownKeys` to also merge symbol-keyed extension properties.
+   *
+   * @default Object.keys
+   */
+  getSchemaKeys?: (schema: JSONSchema7) => PropertyKey[];
 }
 
 export const DEFAULT_CHECKS = [
@@ -343,6 +353,7 @@ export function createMerger({
   assigners = [],
   checks = DEFAULT_CHECKS,
   mergers,
+  getSchemaKeys = Object.keys,
 }: MergeOptions = {}) {
   function mergeArrayOfSchemaDefinitions(
     schemas: JSONSchema7Definition[]
@@ -695,7 +706,7 @@ export function createMerger({
     let target = { ...left };
     const assigners = new Set<Assigner<JSONSchema7>>();
     const checks = new Set<(target: JSONSchema7) => void>();
-    const rKeys = Object.keys(right) as SchemaKey[];
+    const rKeys = getSchemaKeys(right) as SchemaKey[];
     const l = rKeys.length;
     for (let i = 0; i < l; i++) {
       const rKey = rKeys[i]!;
