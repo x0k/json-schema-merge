@@ -1,5 +1,11 @@
 # @x0k/json-schema-merge
 
+## 1.0.5
+
+### Patch Changes
+
+- [#7](https://github.com/x0k/json-schema-merge/pull/7) [`75a99a7`](https://github.com/x0k/json-schema-merge/commit/75a99a72a34da8c09ca59b9a106a809fe9755bd3) Thanks [@jimmycallin](https://github.com/jimmycallin)! - Fix packaging: publish `src` so the shipped source maps and declaration maps resolve, and mark the package side-effect free for bundler tree-shaking.
+
 ## 1.0.4
 
 ### Patch Changes
