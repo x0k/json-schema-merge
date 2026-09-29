@@ -156,6 +156,17 @@ const CONDITION_ASSIGNER_KEYS = [
 
 const CONTAINS_ASSIGNER_KEYS = ["contains"] as const satisfies SchemaKey[];
 
+function isKeywordOfPresentGroup(
+  schema: JSONSchema7,
+  key: SchemaKey,
+  groupKeys: readonly SchemaKey[]
+) {
+  return (
+    groupKeys.includes(key) &&
+    groupKeys.some((groupKey) => schema[groupKey] !== undefined)
+  );
+}
+
 function assignCondition(target: JSONSchema7, source: JSONSchema7) {
   if (source.if !== undefined) {
     target.if = source.if;
@@ -577,12 +588,24 @@ export function createMerger({
 
   const itemsAssigner: Assigner<JSONSchema7> = (
     target,
-    // NOTE: Schema that has `additionalItems` without an `items` keyword is invalid
-    // so the assigner should be triggered only be colliding `items` properties
-    // so default values are used only for type narrowing
-    { items: lItems = [], additionalItems: lAdditional },
-    { items: rItems = [], additionalItems: rAdditional }
+    { items: lItems, additionalItems: lAdditional },
+    { items: rItems, additionalItems: rAdditional }
   ) => {
+    // `additionalItems` only applies next to an array of `items`, so a side
+    // without `items` constrains nothing here and the other side is kept as is
+    if (lItems === undefined || rItems === undefined) {
+      const [items, additional] =
+        lItems === undefined ? [rItems, rAdditional] : [lItems, lAdditional];
+      if (items !== undefined) {
+        target.items = items;
+      }
+      assignSchemaDefinitionOrRecordOfSchemaDefinitions(
+        target,
+        "additionalItems",
+        Array.isArray(items) ? additional : undefined
+      );
+      return target;
+    }
     const isLArr = Array.isArray(lItems);
     const isRArr = Array.isArray(rItems);
     const itemsArray: JSONSchema7Definition[] = [];
@@ -755,7 +778,15 @@ export function createMerger({
         }
       }
       const lv = left[rKey];
-      if (lv === undefined) {
+      // `properties`/`patternProperties`/`additionalProperties` and
+      // `items`/`additionalItems` constrain each other, so when the left side has
+      // a keyword of the same group, a right-side keyword the left side lacks must
+      // not be copied next to it: it goes to the group's assigner.
+      if (
+        lv === undefined &&
+        !isKeywordOfPresentGroup(left, rKey, PROPERTIES_ASSIGNER_KEYS) &&
+        !isKeywordOfPresentGroup(left, rKey, ITEMS_ASSIGNER_KEYS)
+      ) {
         // @ts-expect-error too complex
         target[rKey] = rv;
         continue;
