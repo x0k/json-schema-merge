@@ -158,74 +158,22 @@ describe("if then else", function () {
     });
   });
 
-  // NOTE: Behavior for invalid schemas is undefined
-  // it('should not move to base schema if only some keywords are not present', () => {
-  //   const result = mergeAllOf({
-  //     else: false,
-  //     allOf: [{
-  //       if: {
-  //         required: ['prop1']
-  //       },
-  //       then: {},
-  //       else: {}
-  //     }]
-  //   })
+  it("should not move to base schema if only some keywords are not present", () => {
+    const condition: JSONSchema7Definition = {
+      if: { required: ["prop1"] },
+      then: {},
+      else: {},
+    };
 
-  //   expect(result).toEqual({
-  //     else: false,
-  //     allOf: [{
-  //       if: {
-  //         required: ['prop1']
-  //       },
-  //       then: {},
-  //       else: {}
-  //     }]
-  //   })
+    const result = mergeAllOf({ else: false, allOf: [condition] });
+    expect(result).toEqual({ else: false, allOf: [condition] });
 
-  //   const result2 = mergeAllOf({
-  //     then: false,
-  //     allOf: [{
-  //       if: {
-  //         required: ['prop1']
-  //       },
-  //       then: {},
-  //       else: {}
-  //     }]
-  //   })
+    const result2 = mergeAllOf({ then: false, allOf: [condition] });
+    expect(result2).toEqual({ then: false, allOf: [condition] });
 
-  //   expect(result2).toEqual({
-  //     then: false,
-  //     allOf: [{
-  //       if: {
-  //         required: ['prop1']
-  //       },
-  //       then: {},
-  //       else: {}
-  //     }]
-  //   })
-
-  //   const result3 = mergeAllOf({
-  //     if: false,
-  //     allOf: [{
-  //       if: {
-  //         required: ['prop1']
-  //       },
-  //       then: {},
-  //       else: {}
-  //     }]
-  //   })
-
-  //   expect(result3).toEqual({
-  //     if: false,
-  //     allOf: [{
-  //       if: {
-  //         required: ['prop1']
-  //       },
-  //       then: {},
-  //       else: {}
-  //     }]
-  //   })
-  // })
+    const result3 = mergeAllOf({ if: false, allOf: [condition] });
+    expect(result3).toEqual({ if: false, allOf: [condition] });
+  });
 
   it("works with undefined value, it is as if not there. NOT the same as empty schema", () => {
     const result = mergeAllOf({
@@ -379,6 +327,51 @@ describe("if then else", function () {
         { a: 1, b: 1, e: 1 },
         { c: 1, d: 1 },
         { a: 1, c: 1, d: 1 },
+      ]);
+    });
+  });
+
+  describe("known limitation: disjoint conditions", () => {
+    it.fails("does not attach a later `else` to an `if`/`then`", () => {
+      const original: JSONSchema7Definition = {
+        allOf: [
+          { if: { required: ["a"] }, then: { required: ["b"] } },
+          { else: { required: ["d"] } },
+        ],
+      };
+      const result = mergeAllOf(original);
+
+      expect(result).toEqual({
+        if: { required: ["a"] },
+        then: { required: ["b"] },
+        allOf: [{ else: { required: ["d"] } }],
+      });
+      expectEquivalent(original, result, [
+        {},
+        { a: 1 },
+        { a: 1, b: 1 },
+        { a: 1, b: 1, d: 1 },
+      ]);
+    });
+
+    it.fails("does not attach a later `if`/`then` to an `else`", () => {
+      const original: JSONSchema7Definition = {
+        allOf: [
+          { else: { required: ["x"] } },
+          { if: { required: ["c"] }, then: { required: ["d"] } },
+        ],
+      };
+      const result = mergeAllOf(original);
+
+      expect(result).toEqual({
+        else: { required: ["x"] },
+        allOf: [{ if: { required: ["c"] }, then: { required: ["d"] } }],
+      });
+      expectEquivalent(original, result, [
+        {},
+        { x: 1 },
+        { c: 1 },
+        { c: 1, d: 1 },
       ]);
     });
   });

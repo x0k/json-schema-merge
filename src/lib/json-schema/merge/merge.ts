@@ -156,23 +156,21 @@ const CONDITION_ASSIGNER_KEYS = [
 
 const CONTAINS_ASSIGNER_KEYS = ["contains"] as const satisfies SchemaKey[];
 
-function hasCondition(schema: JSONSchema7) {
-  return (
-    schema.if !== undefined ||
-    schema.then !== undefined ||
-    schema.else !== undefined
-  );
-}
-
 function assignCondition(target: JSONSchema7, source: JSONSchema7) {
   if (source.if !== undefined) {
     target.if = source.if;
+  } else {
+    delete target.if;
   }
   if (source.then !== undefined) {
     target.then = source.then;
+  } else {
+    delete target.then;
   }
   if (source.else !== undefined) {
     target.else = source.else;
+  } else {
+    delete target.else;
   }
   return target;
 }
@@ -763,17 +761,7 @@ export function createMerger({
         }
       }
       const lv = left[rKey];
-      // `if`, `then` and `else` are one condition, so when the left side has any
-      // of them, a right-side condition keyword the left side lacks must not be
-      // copied next to the left condition: it goes to the condition assigner with
-      // the rest of the right condition.
-      if (
-        lv === undefined &&
-        !(
-          hasCondition(left) &&
-          (CONDITION_ASSIGNER_KEYS as readonly SchemaKey[]).includes(rKey)
-        )
-      ) {
+      if (lv === undefined) {
         // @ts-expect-error too complex
         target[rKey] = rv;
         continue;
