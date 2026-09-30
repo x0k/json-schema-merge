@@ -1,5 +1,18 @@
 # @x0k/json-schema-merge
 
+## 1.1.0
+
+### Minor Changes
+
+- [#11](https://github.com/x0k/json-schema-merge/pull/11) [`b4e7250`](https://github.com/x0k/json-schema-merge/commit/b4e72509bfe288c0a07444301fe82f8e5fae0d90) Thanks [@MarekBodingerBA](https://github.com/MarekBodingerBA)! - Add the `isSchemaWithItems` type guard and the `SchemaWithItems` type.
+
+### Patch Changes
+
+- [#11](https://github.com/x0k/json-schema-merge/pull/11) [`0d470a3`](https://github.com/x0k/json-schema-merge/commit/0d470a3f0ad0ed13e2220e9aabe3b03f21328251) Thanks [@MarekBodingerBA](https://github.com/MarekBodingerBA)! - Merge keyword groups as a whole. `properties`/`patternProperties`/`additionalProperties`, `items`/`additionalItems` and `if`/`then`/`else` constrain each other, so `allOf: [{ properties: { a: {} } }, { additionalProperties: false }]` allowed `a`, and `allOf: [{ if: { minimum: 5 } }, { then: { maximum: 2 } }]` rejected everything from 5 up — a `then` without an `if` is inert. When the left side holds any keyword of a group, the right side's keywords of that group now go to the group's assigner: left at the root, right in `allOf`. `additionalItems` next to a missing or schema-valued `items` is dropped.
+
+  > [!NOTE]
+  > Custom `assigners` are now consulted per group, not per keyword: a keyword of your group that the left side lacks routes to your assigner instead of being copied to the root.
+
 ## 1.0.6
 
 ### Patch Changes
