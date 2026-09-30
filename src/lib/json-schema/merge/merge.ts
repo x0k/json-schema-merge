@@ -59,14 +59,11 @@ function createRecordsMerge<T>(merge: (l: T, r: T) => T) {
  * It receives the partially merged `target` and the original
  * `left` and `right` schemas.
  *
- * In most cases, it modifies and returns the `target` object,
- * but it may also return a completely new schema object if needed.
- *
  * Assigners are used for keywords that cannot be merged by simple
  * value-level functions, often because they interact with other
  * keywords or require holistic decisions.
  */
-export type Assigner<R extends {}> = (target: R, l: R, r: R) => R;
+export type Assigner<R extends {}> = (target: R, l: R, r: R) => void;
 
 function createMap<R>(items: Iterable<[SchemaKey[], R]>) {
   const map = new Map<SchemaKey, R>();
@@ -159,12 +156,18 @@ const CONTAINS_ASSIGNER_KEYS = ["contains"] as const satisfies SchemaKey[];
 function assignCondition(target: JSONSchema7, source: JSONSchema7) {
   if (source.if !== undefined) {
     target.if = source.if;
+  } else {
+    delete target.if;
   }
   if (source.then !== undefined) {
     target.then = source.then;
+  } else {
+    delete target.then;
   }
   if (source.else !== undefined) {
     target.else = source.else;
+  } else {
+    delete target.else;
   }
   return target;
 }
@@ -466,7 +469,7 @@ export function createMerger({
           : (lPatterns ?? rPatterns)
       );
       delete target.additionalProperties;
-      return target;
+      return;
     }
     // Additional Properties
     const additionalProperties = mergeSchemaDefinitions(
@@ -572,7 +575,6 @@ export function createMerger({
       "patternProperties",
       patterns
     );
-    return target;
   };
 
   const itemsAssigner: Assigner<JSONSchema7> = (
@@ -636,7 +638,6 @@ export function createMerger({
       delete target.additionalItems;
       target.items = mergeSchemaDefinitions(lItems, rItems);
     }
-    return target;
   };
 
   const conditionAssigner: Assigner<JSONSchema7> = (target, l, r) => {
@@ -647,35 +648,34 @@ export function createMerger({
     } else {
       target.allOf = target.allOf.concat(cond);
     }
-    return target;
   };
 
   const containsAssigner: Assigner<JSONSchema7> = (target, l, r) => {
     const lContains = l.contains!;
     const rContains = r.contains!;
     // Cheapest hot path: identical reference (target already holds it via spread).
-    if (lContains === rContains) return target;
+    if (lContains === rContains) return;
     // `contains: false` rejects every array, so it dominates the conjunction
     // (non-array instances ignore `contains` on both sides).
     if (lContains === false || rContains === false) {
       target.contains = false;
-      return target;
+      return;
     }
     // `contains: true` (or `{}`) only requires a non-empty array, which is
     // already implied by any other `contains`, so the other side wins.
     // (If both sides allow any, either one is equivalent.)
     if (isAllowAnySchema(lContains)) {
       target.contains = rContains;
-      return target;
+      return;
     }
     if (isAllowAnySchema(rContains)) {
       target.contains = lContains;
-      return target;
+      return;
     }
     // Idempotence: `contains: C` ∧ `contains: C` ≡ `contains: C`
     // (target already holds `lContains` via spread).
     if (deduplicateJsonSchemaDef([lContains, rContains]).length === 1) {
-      return target;
+      return;
     }
     // Existential conjunction cannot be expressed as a single `contains`
     // (`∃i C1(i) ∧ ∃j C2(j)` allows `i ≠ j`, while `∃k C1(k) ∧ C2(k)`
@@ -686,7 +686,6 @@ export function createMerger({
       target.allOf === undefined
         ? [branch]
         : deduplicateJsonSchemaDef(target.allOf.concat(branch));
-    return target;
   };
 
   function mergeArraysOfSchemaDefinition(
@@ -715,6 +714,26 @@ export function createMerger({
     ...assigners,
   ]);
 
+  function computeTargetAssigners(target: JSONSchema7) {
+    const keys = Reflect.ownKeys(target);
+    const assigners = new Set<Assigner<JSONSchema7>>();
+    for (
+      let i = 0;
+      i < keys.length && assigners.size < ASSIGNERS_MAP.size;
+      i++
+    ) {
+      const key = keys[i] as SchemaKey;
+      if (target[key] === undefined) {
+        continue;
+      }
+      const assigner = ASSIGNERS_MAP.get(key);
+      if (assigner) {
+        assigners.add(assigner);
+      }
+    }
+    return assigners;
+  }
+
   const CHECKS_MAP = createChecksMap(checks);
 
   function mergeSchemaDefinitions(
@@ -733,7 +752,8 @@ export function createMerger({
     if (isAllowAnySchema(right)) {
       return left;
     }
-    let target = { ...left };
+    const target = { ...left };
+    const targetAssigners = computeTargetAssigners(left);
     const assigners = new Set<Assigner<JSONSchema7>>();
     const checks = new Set<(target: JSONSchema7) => void>();
     const rKeys = Reflect.ownKeys(right) as SchemaKey[];
@@ -754,15 +774,15 @@ export function createMerger({
           }
         }
       }
+      const assign = ASSIGNERS_MAP.get(rKey);
+      if (assign && targetAssigners.has(assign)) {
+        assigners.add(assign);
+        continue;
+      }
       const lv = left[rKey];
       if (lv === undefined) {
         // @ts-expect-error too complex
         target[rKey] = rv;
-        continue;
-      }
-      const assign = ASSIGNERS_MAP.get(rKey);
-      if (assign) {
-        assigners.add(assign);
         continue;
       }
       const merge = MERGERS[rKey] ?? defaultMerger;
@@ -770,7 +790,7 @@ export function createMerger({
       target[rKey] = merge(lv as never, rv as never);
     }
     for (const assign of assigners) {
-      target = assign(target, left, right);
+      assign(target, left, right);
     }
     for (const check of checks) {
       check(target);
