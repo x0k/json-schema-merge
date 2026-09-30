@@ -111,3 +111,13 @@ export function isAllowAnySchema(
 ): def is true | Record<string, never> {
   return isSchemaObject(def) ? isRecordEmpty(def) : def === true;
 }
+
+export type SchemaWithItems = JSONSchema7 & {
+  items: Exclude<JSONSchema7["items"], undefined>;
+};
+
+export function isSchemaWithItems(
+  schema: JSONSchema7
+): schema is SchemaWithItems {
+  return schema.items !== undefined;
+}

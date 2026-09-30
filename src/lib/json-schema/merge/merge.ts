@@ -13,7 +13,11 @@ import {
 } from "../../array.ts";
 import { identity } from "../../function.ts";
 import { lcm } from "../../math.ts";
-import { isAllowAnySchema } from "../json-schema.ts";
+import {
+  isAllowAnySchema,
+  isSchemaWithItems,
+  type SchemaWithItems,
+} from "../json-schema.ts";
 
 import { simplePatternsMerger } from "./patterns.ts";
 
@@ -156,17 +160,6 @@ const CONDITION_ASSIGNER_KEYS = [
 
 const CONTAINS_ASSIGNER_KEYS = ["contains"] as const satisfies SchemaKey[];
 
-function isKeywordOfPresentGroup(
-  schema: JSONSchema7,
-  key: SchemaKey,
-  groupKeys: readonly SchemaKey[]
-) {
-  return (
-    groupKeys.includes(key) &&
-    groupKeys.some((groupKey) => schema[groupKey] !== undefined)
-  );
-}
-
 function assignCondition(target: JSONSchema7, source: JSONSchema7) {
   if (source.if !== undefined) {
     target.if = source.if;
@@ -177,6 +170,19 @@ function assignCondition(target: JSONSchema7, source: JSONSchema7) {
   if (source.else !== undefined) {
     target.else = source.else;
   }
+  return target;
+}
+
+function assignItems(
+  target: JSONSchema7,
+  { items, additionalItems }: SchemaWithItems
+) {
+  target.items = items;
+  assignSchemaDefinitionOrRecordOfSchemaDefinitions(
+    target,
+    "additionalItems",
+    Array.isArray(items) ? additionalItems : undefined
+  );
   return target;
 }
 
@@ -586,26 +592,22 @@ export function createMerger({
     return target;
   };
 
-  const itemsAssigner: Assigner<JSONSchema7> = (
-    target,
-    { items: lItems, additionalItems: lAdditional },
-    { items: rItems, additionalItems: rAdditional }
-  ) => {
+  const itemsAssigner: Assigner<JSONSchema7> = (target, l, r) => {
     // `additionalItems` only applies next to an array of `items`, so a side
     // without `items` constrains nothing here and the other side is kept as is
-    if (lItems === undefined || rItems === undefined) {
-      const [items, additional] =
-        lItems === undefined ? [rItems, rAdditional] : [lItems, lAdditional];
-      if (items !== undefined) {
-        target.items = items;
+    if (!isSchemaWithItems(l)) {
+      if (!isSchemaWithItems(r)) {
+        delete target.items;
+        delete target.additionalItems;
+        return target;
       }
-      assignSchemaDefinitionOrRecordOfSchemaDefinitions(
-        target,
-        "additionalItems",
-        Array.isArray(items) ? additional : undefined
-      );
-      return target;
+      return assignItems(target, r);
     }
+    if (!isSchemaWithItems(r)) {
+      return assignItems(target, l);
+    }
+    const { items: lItems, additionalItems: lAdditional } = l;
+    const { items: rItems, additionalItems: rAdditional } = r;
     const isLArr = Array.isArray(lItems);
     const isRArr = Array.isArray(rItems);
     const itemsArray: JSONSchema7Definition[] = [];
@@ -738,6 +740,26 @@ export function createMerger({
     ...assigners,
   ]);
 
+  const ASSIGNEER_KEYS = new Map<Assigner<JSONSchema7>, SchemaKey[]>();
+  for (const [key, assigner] of ASSIGNERS_MAP) {
+    const owned = ASSIGNEER_KEYS.get(assigner);
+    if (owned === undefined) {
+      ASSIGNEER_KEYS.set(assigner, [key]);
+    } else {
+      owned.push(key);
+    }
+  }
+
+  function hasAssignerKey(left: JSONSchema7, assigner: Assigner<JSONSchema7>) {
+    const keys = ASSIGNEER_KEYS.get(assigner)!;
+    for (let i = 0; i < keys.length; i++) {
+      if (left[keys[i]!] !== undefined) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   const CHECKS_MAP = createChecksMap(checks);
 
   function mergeSchemaDefinitions(
@@ -777,23 +799,15 @@ export function createMerger({
           }
         }
       }
-      const lv = left[rKey];
-      // `properties`/`patternProperties`/`additionalProperties` and
-      // `items`/`additionalItems` constrain each other, so when the left side has
-      // a keyword of the same group, a right-side keyword the left side lacks must
-      // not be copied next to it: it goes to the group's assigner.
-      if (
-        lv === undefined &&
-        !isKeywordOfPresentGroup(left, rKey, PROPERTIES_ASSIGNER_KEYS) &&
-        !isKeywordOfPresentGroup(left, rKey, ITEMS_ASSIGNER_KEYS)
-      ) {
-        // @ts-expect-error too complex
-        target[rKey] = rv;
+      const assign = ASSIGNERS_MAP.get(rKey);
+      if (assign !== undefined && hasAssignerKey(left, assign)) {
+        assigners.add(assign);
         continue;
       }
-      const assign = ASSIGNERS_MAP.get(rKey);
-      if (assign) {
-        assigners.add(assign);
+      const lv = left[rKey];
+      if (lv === undefined) {
+        // @ts-expect-error too complex
+        target[rKey] = rv;
         continue;
       }
       const merge = MERGERS[rKey] ?? defaultMerger;
