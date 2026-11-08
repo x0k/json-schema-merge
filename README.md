@@ -29,16 +29,16 @@ npm i @x0k/json-schema-merge
 
 ```ts
 import {
-  createDeduplicator,
-  createIntersector,
-} from "@x0k/json-schema-merge/lib/array";
-import {
   createMerger,
   createComparator,
   createShallowAllOfMerge,
   // Use to merge nested `allOf`
   createDeepAllOfMerge,
 } from "@x0k/json-schema-merge";
+import {
+  createDeduplicator,
+  createIntersector,
+} from "@x0k/json-schema-merge/lib/array";
 
 const { compareSchemaDefinitions, compareSchemaValues } = createComparator();
 

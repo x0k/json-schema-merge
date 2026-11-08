@@ -4,7 +4,6 @@ import type {
 } from "json-schema";
 
 import type { Visitor } from "../traverser.ts";
-
 import type {
   AnySubSchemaKey,
   SubSchemaKey,

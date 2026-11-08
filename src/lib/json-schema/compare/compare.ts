@@ -6,15 +6,14 @@ import type {
   JSONSchema7Object,
 } from "json-schema";
 
-import { type Comparator, ascComparator } from "../../ord.ts";
 import {
   createArrayComparator,
   createDeduplicator,
   isArrayEmpty,
 } from "../../array.ts";
-import { getOwn, isRecordEmpty } from "../../object.ts";
 import { weakMemoize } from "../../memoize.ts";
-
+import { getOwn, isRecordEmpty } from "../../object.ts";
+import { type Comparator, ascComparator } from "../../ord.ts";
 import { isAllowAnySchema, isSchemaObject } from "../json-schema.ts";
 
 const zero = () => 0;

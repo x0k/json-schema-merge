@@ -1,21 +1,28 @@
-import { bench, describe } from "vitest";
+import { merge as allOfMerge } from "allof-merge";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import jsonSchemaMergeAllOf, { type Options } from "json-schema-merge-allof";
-import { merge as allOfMerge } from "allof-merge";
+import { describe, test } from "vitest";
 
 import { createDeduplicator, createIntersector } from "../../array.ts";
-
 import { createComparator } from "../compare/index.ts";
-
-import testData from "./fixtures/data.json" with { type: "json" };
-import userSchema from "./fixtures/user-schema.json" with { type: "json" };
-import { createMerger } from "./merge.ts";
 import {
   createDeepAllOfMerge,
   createShallowAllOfMerge,
 } from "./all-of-merge.ts";
+import testData from "./fixtures/data.json" with { type: "json" };
+import userSchema from "./fixtures/user-schema.json" with { type: "json" };
+import { createMerger } from "./merge.ts";
 
 const { compareSchemaValues, compareSchemaDefinitions } = createComparator();
+
+function supports(fn: () => unknown) {
+  try {
+    fn();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const { mergeArrayOfSchemaDefinitions } = createMerger({
   intersectJson: createIntersector(compareSchemaValues),
@@ -40,41 +47,65 @@ const deepAllOfMerge = createDeepAllOfMerge(shallowAllOfMergeWithoutChecks);
 
 describe("shallow merge", () => {
   for (const [name, data] of Object.entries(testData.properties)) {
-    describe(name, () => {
-      bench("shallowAllOfMerge", () => {
-        shallowAllOfMerge(data as JSONSchema7Definition);
-      });
-      bench("json-schema-merge-allof", () => {
-        jsonSchemaMergeAllOf(data as JSONSchema7, { deep: false } as Options);
-      });
-      // NOTE: Performs deep merge by default; comparison may be incorrect.
-      bench("allof-merge", () => {
-        allOfMerge(data);
-      });
+    test(name, async ({ bench }) => {
+      const mergeAllOf = () =>
+        jsonSchemaMergeAllOf(
+          data as JSONSchema7,
+          {
+            deep: false,
+          } as Options
+        );
+
+      await bench.compare(
+        bench("shallowAllOfMerge", () => {
+          shallowAllOfMerge(data as JSONSchema7Definition);
+        }),
+        ...(supports(mergeAllOf)
+          ? [bench("json-schema-merge-allof", mergeAllOf)]
+          : []),
+        // NOTE: Performs deep merge by default; comparison may be incorrect.
+        bench("allof-merge", () => {
+          allOfMerge(data);
+        })
+      );
     });
   }
 });
 
 describe("huge shallow merge", () => {
-  bench("shallowAllOfMerge", () => {
-    shallowAllOfMerge(userSchema as unknown as JSONSchema7);
-  });
-  bench("json-schema-merge-allof", () => {
-    jsonSchemaMergeAllOf(userSchema as unknown as JSONSchema7);
-  });
-  bench("allof-merge", () => {
-    allOfMerge(userSchema);
+  test("huge shallow merge", async ({ bench }) => {
+    const mergeAllOf = () =>
+      jsonSchemaMergeAllOf(userSchema as unknown as JSONSchema7);
+
+    await bench.compare(
+      bench("shallowAllOfMerge", () => {
+        shallowAllOfMerge(userSchema as unknown as JSONSchema7);
+      }),
+      ...(supports(mergeAllOf)
+        ? [bench("json-schema-merge-allof", mergeAllOf)]
+        : []),
+      bench("allof-merge", () => {
+        allOfMerge(userSchema);
+      })
+    );
   });
 });
 
 describe("deep merge", () => {
-  bench("deepAllOfMerge", () => {
-    deepAllOfMerge(testData as unknown as JSONSchema7);
-  });
-  bench("json-schema-merge-allof", () => {
-    jsonSchemaMergeAllOf(testData as unknown as JSONSchema7);
-  });
-  bench("allof-merge", () => {
-    allOfMerge(testData);
+  test("deep merge", async ({ bench }) => {
+    const mergeAllOf = () =>
+      jsonSchemaMergeAllOf(testData as unknown as JSONSchema7);
+
+    await bench.compare(
+      bench("deepAllOfMerge", () => {
+        deepAllOfMerge(testData as unknown as JSONSchema7);
+      }),
+      ...(supports(mergeAllOf)
+        ? [bench("json-schema-merge-allof", mergeAllOf)]
+        : []),
+      bench("allof-merge", () => {
+        allOfMerge(testData);
+      })
+    );
   });
 });

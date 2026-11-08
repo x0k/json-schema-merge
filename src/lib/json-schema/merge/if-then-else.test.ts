@@ -6,8 +6,8 @@ import { Ajv } from "ajv";
 import type { JSONSchema7Definition } from "json-schema";
 import { describe, it, expect } from "vitest";
 
-import { createMerger } from "./merge.ts";
 import { createShallowAllOfMerge } from "./all-of-merge.ts";
+import { createMerger } from "./merge.ts";
 
 const { mergeArrayOfSchemaDefinitions } = createMerger();
 const mergeAllOf = createShallowAllOfMerge(mergeArrayOfSchemaDefinitions);

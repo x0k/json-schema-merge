@@ -8,9 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { createDeduplicator, createIntersector } from "../../array.ts";
 import { identity } from "../../function.ts";
-
 import { createComparator } from "../compare/index.ts";
-
 import {
   createDeepAllOfMerge,
   createShallowAllOfMerge,

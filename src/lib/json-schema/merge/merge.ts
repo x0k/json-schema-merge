@@ -20,7 +20,6 @@ import {
   isSchemaWithItems,
   type SchemaWithItems,
 } from "../json-schema.ts";
-
 import { simplePatternsMerger } from "./patterns.ts";
 
 type SchemaKey = keyof JSONSchema7;
@@ -91,7 +90,9 @@ function createMap<R>(items: Iterable<[SchemaKey[], R]>) {
 function assignSchemaDefinitionOrRecordOfSchemaDefinitions<
   K extends {
     [T in SchemaKey]: JSONSchema7[T] extends
-      JSONSchema7Definition | Record<string, JSONSchema7Definition> | undefined
+      | JSONSchema7Definition
+      | Record<string, JSONSchema7Definition>
+      | undefined
       ? T
       : never;
   }[SchemaKey],
