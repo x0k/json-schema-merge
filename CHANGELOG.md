@@ -1,5 +1,17 @@
 # @x0k/json-schema-merge
 
+## 1.1.1
+
+### Patch Changes
+
+- [#17](https://github.com/x0k/json-schema-merge/pull/17) [`4a5ea8a`](https://github.com/x0k/json-schema-merge/commit/4a5ea8a1038764438469a14b53cac4910c78698b) Thanks [@x0k](https://github.com/x0k)! - Fix merging schema-valued `items` with array-valued `items`. The single schema applies to every element, so when the tuple side has no `additionalItems`, it is now preserved as the merged `additionalItems` instead of being dropped.
+
+- [#15](https://github.com/x0k/json-schema-merge/pull/15) [`ba97b4a`](https://github.com/x0k/json-schema-merge/commit/ba97b4ac23abaff2bf4014121835f2d23b9ef8b0) Thanks [@x0k](https://github.com/x0k)! - Patterns merged by the default `simplePatternsMerger` now also match property names containing line terminators.
+
+- [#15](https://github.com/x0k/json-schema-merge/pull/15) [`71d10d4`](https://github.com/x0k/json-schema-merge/commit/71d10d4d8284a95cccedcd4f5dd94872f1e2a904) Thanks [@x0k](https://github.com/x0k)! - Fix `additionalProperties` leaking into `patternProperties` from another branch. Properties explicitly declared on the opposite side, as well as names covered by its `patternProperties`, no longer receive that side's `additionalProperties` constraints.
+
+- [#15](https://github.com/x0k/json-schema-merge/pull/15) [`0666b43`](https://github.com/x0k/json-schema-merge/commit/0666b43e0e45cc3845c508c7d9785eb96c611404) Thanks [@x0k](https://github.com/x0k)! - Fix handling of keys that shadow `Object.prototype` members such as `constructor` and `toString`, and treat `__proto__` as an own property instead of changing the object's prototype.
+
 ## 1.1.0
 
 ### Minor Changes
