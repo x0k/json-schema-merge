@@ -1174,5 +1174,12 @@ describe("comparison", () => {
       compare(true, false, false);
       // expect(isEqual(undefined, undefined)).toBe(true);
     });
+
+    it("compares prototype-named extension keys as own properties", () => {
+      const schema = { constructor: { type: "string" } };
+      expect(typeof compareSchemaDefinitions(schema, {})).toBe("number");
+      expect(Math.sign(compareSchemaDefinitions(schema, {}))).toBe(1);
+      expect(Math.sign(compareSchemaDefinitions({}, schema))).toBe(-1);
+    });
   });
 });

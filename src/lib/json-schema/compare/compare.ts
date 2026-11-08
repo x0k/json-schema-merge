@@ -12,7 +12,7 @@ import {
   createDeduplicator,
   isArrayEmpty,
 } from "../../array.ts";
-import { isRecordEmpty } from "../../object.ts";
+import { getOwn, isRecordEmpty } from "../../object.ts";
 import { weakMemoize } from "../../memoize.ts";
 
 import { isAllowAnySchema, isSchemaObject } from "../json-schema.ts";
@@ -185,11 +185,13 @@ export function createComparator({
         const l = allKeys.length;
         for (let i = 0; i < l; i++) {
           const key = allKeys[i]!;
-          if (a[key] === b[key]) {
+          const av = getOwn(a, key);
+          const bv = getOwn(b, key);
+          if (av === bv) {
             continue;
           }
-          const cmp = COMPARATORS[key] ?? compareOptionalSchemaValues;
-          const d = cmp(a[key] as undefined, b[key] as undefined);
+          const cmp = getOwn(COMPARATORS, key) ?? compareOptionalSchemaValues;
+          const d = cmp(av as undefined, bv as undefined);
           if (d !== 0) {
             return d;
           }

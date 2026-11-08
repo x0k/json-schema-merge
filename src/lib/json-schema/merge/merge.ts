@@ -13,6 +13,7 @@ import {
 } from "../../array.ts";
 import { identity } from "../../function.ts";
 import { lcm } from "../../math.ts";
+import { getOwn, setOwn } from "../../object.ts";
 import {
   isAllowAnySchema,
   isSchemaWithItems,
@@ -55,8 +56,12 @@ function createRecordsMerge<T>(merge: (l: T, r: T) => T) {
     const l = keys.length;
     for (let i = 0; i < l; i++) {
       const key = keys[i]!;
-      target[key] =
-        left[key] === undefined ? right[key]! : merge(left[key], right[key]!);
+      const lv = getOwn(left, key);
+      setOwn(
+        target,
+        key,
+        lv === undefined ? right[key]! : merge(lv, right[key]!)
+      );
     }
     return target;
   };
@@ -458,8 +463,8 @@ export function createMerger({
         // overlapping patterns, so don't overwrite them.
         for (let i = 0; i < l; i++) {
           const pattern = patternKeys[i]!;
-          if (target[pattern] === undefined) {
-            target[pattern] = patterns![pattern]!;
+          if (!Object.hasOwn(target, pattern)) {
+            setOwn(target, pattern, patterns![pattern]!);
           }
         }
       } else {
@@ -468,7 +473,7 @@ export function createMerger({
           if (matchedPatterns.has(pattern)) {
             continue;
           }
-          const schema = target[pattern] ?? patterns![pattern]!;
+          const schema = getOwn(target, pattern) ?? patterns![pattern]!;
           const hasExcludedNames = oppositePropertyNames.length > 0;
           const hasExcludedPatterns = oppositePatterns.length > 0;
           const enrichedPattern =
@@ -480,18 +485,20 @@ export function createMerger({
                 )
               : pattern;
           if (enrichedPattern === pattern) {
-            target[pattern] = mergeSchemaDefinitions(
-              schema,
-              oppositeAdditional
+            setOwn(
+              target,
+              pattern,
+              mergeSchemaDefinitions(schema, oppositeAdditional)
             );
           } else {
             // The opposite `additionalProperties` does not apply to
             // properties explicitly declared on the opposite side or
             // to names covered by its `patternProperties`.
-            target[pattern] = schema;
-            target[enrichedPattern] = mergeSchemaDefinitions(
-              schema,
-              oppositeAdditional
+            setOwn(target, pattern, schema);
+            setOwn(
+              target,
+              enrichedPattern,
+              mergeSchemaDefinitions(schema, oppositeAdditional)
             );
           }
         }
@@ -563,12 +570,12 @@ export function createMerger({
         key,
         lProps[key]!,
         lCompiledPatterns,
-        rProps[key],
+        getOwn(rProps, key),
         rCompiledPatterns,
         mappedRAdditional
       );
       if (prop !== undefined) {
-        properties[key] = prop;
+        setOwn(properties, key, prop);
       }
     }
     const rKeys = Object.keys(rProps);
@@ -589,7 +596,7 @@ export function createMerger({
         mappedLAdditional
       );
       if (prop !== undefined) {
-        properties[key] = prop;
+        setOwn(properties, key, prop);
       }
     }
     assignSchemaDefinitionOrRecordOfSchemaDefinitions(
@@ -609,9 +616,10 @@ export function createMerger({
         if (isSubRegExp(rKey, lKey)) {
           matchedPatterns.add(rKey);
         }
-        patterns[mergePatterns(lKey, rKey)] = mergeSchemaDefinitions(
-          lPatterns![lKey]!,
-          rPatterns![rKey]!
+        setOwn(
+          patterns,
+          mergePatterns(lKey, rKey),
+          mergeSchemaDefinitions(lPatterns![lKey]!, rPatterns![rKey]!)
         );
       });
     }
@@ -836,7 +844,7 @@ export function createMerger({
     const l = rKeys.length;
     for (let i = 0; i < l; i++) {
       const rKey = rKeys[i]!;
-      const rv = right[rKey];
+      const rv = getOwn(right, rKey);
       if (rv === undefined) {
         continue;
       }
@@ -855,15 +863,14 @@ export function createMerger({
         assigners.add(assign);
         continue;
       }
-      const lv = left[rKey];
+      const lv = getOwn(left, rKey);
       if (lv === undefined) {
-        // @ts-expect-error too complex
-        target[rKey] = rv;
+        setOwn(target, rKey, rv as never);
         continue;
       }
-      const merge = MERGERS[rKey] ?? defaultMerger;
+      const merge = getOwn(MERGERS, rKey) ?? defaultMerger;
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      target[rKey] = merge(lv as never, rv as never);
+      setOwn(target, rKey, merge(lv as never, rv as never) as never);
     }
     for (const assign of assigners) {
       target = assign(target, left, right);
