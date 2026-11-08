@@ -846,7 +846,12 @@ export function createMerger({
       assignSchemaDefinitionOrRecordOfSchemaDefinitions(
         target,
         "additionalItems",
-        additional && mergeSchemaDefinitions(additional, item)
+        // A schema-valued `items` applies to every element, including those
+        // after the tuple, so it constrains `additionalItems` even when the
+        // tuple side does not define one.
+        additional === undefined
+          ? item
+          : mergeSchemaDefinitions(additional, item)
       );
       for (let i = 0; i < arr.length; i++) {
         itemsArray.push(mergeSchemaDefinitions(arr[i]!, item));
