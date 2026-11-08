@@ -270,22 +270,23 @@ export type Merger<T> = (a: T, b: T) => T;
  *
  * The subtractor is an implementation detail of `propertiesAssigner` and is
  * intentionally not exported.
+ *
+ * `matchingPropertyNames` must already be filtered to names that match
+ * `pattern`. The property loops record matches while testing them against the
+ * opposite patterns, so testing them again here would duplicate that work.
  */
 function createPatternSubtractor(mergePatterns: Merger<string>) {
-  return (pattern: string, propertyNames: string[], patterns: string[]) => {
-    const propertyNamesLen = propertyNames.length;
+  return (
+    pattern: string,
+    matchingPropertyNames: string[],
+    patterns: string[]
+  ) => {
+    const propertyNamesLen = matchingPropertyNames.length;
     const patternsLen = patterns.length;
     let names: string | undefined;
-    if (propertyNamesLen > 0) {
-      const regExp = new RegExp(pattern);
-      for (let i = 0; i < propertyNamesLen; i++) {
-        const name = propertyNames[i]!;
-        if (!regExp.test(name)) {
-          continue;
-        }
-        const escapedName = escapeRegExp(name);
-        names = names === undefined ? escapedName : `${names}|${escapedName}`;
-      }
+    for (let i = 0; i < propertyNamesLen; i++) {
+      const escapedName = escapeRegExp(matchingPropertyNames[i]!);
+      names = names === undefined ? escapedName : `${names}|${escapedName}`;
     }
     if (names === undefined && patternsLen === 0) {
       return pattern;
@@ -568,10 +569,11 @@ export function createMerger({
               ? subtractPattern(
                   pattern,
                   // These are exactly the opposite property names that match
-                  // this pattern. They were recorded while merging properties,
-                  // so the subtractor does not need to scan the full name
-                  // list again.
-                  oppositePatternMatches?.[i] ?? oppositePropertyNames,
+                  // this pattern. They were recorded while merging properties.
+                  // The cache is guaranteed to exist here because the subtract
+                  // branch only runs when the opposite `additionalProperties`
+                  // is a constrained schema.
+                  oppositePatternMatches![i]!,
                   oppositePatterns
                 )
               : pattern;
