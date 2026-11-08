@@ -1181,5 +1181,21 @@ describe("comparison", () => {
       expect(Math.sign(compareSchemaDefinitions(schema, {}))).toBe(1);
       expect(Math.sign(compareSchemaDefinitions({}, schema))).toBe(-1);
     });
+
+    it("compares an own __proto__ key as an own property", () => {
+      // An object literal with `__proto__` would set the prototype instead of
+      // creating an own property, so parse it to get a genuine own key.
+      const schema = JSON.parse(
+        '{"__proto__":{"type":"string"}}'
+      ) as JSONSchema7;
+      expect(Math.sign(compareSchemaDefinitions(schema, {}))).toBe(1);
+      expect(Math.sign(compareSchemaDefinitions({}, schema))).toBe(-1);
+      expect(
+        isEqual(schema, JSON.parse('{"__proto__":{"type":"string"}}'))
+      ).toBe(true);
+      expect(
+        isEqual(schema, JSON.parse('{"__proto__":{"type":"number"}}'))
+      ).toBe(false);
+    });
   });
 });
