@@ -983,4 +983,51 @@ describe("properties", () => {
       }
     });
   });
+
+  it("merges equal patterns once when both sides constrain additionalProperties", () => {
+    const { mergeSchemaDefinitions } = createMerger();
+    const lSchema = {
+      patternProperties: {
+        "^x": { minLength: 2 },
+      },
+      additionalProperties: { type: ["string", "number"] },
+    } as const satisfies JSONSchema7Definition;
+    const rSchema = {
+      patternProperties: {
+        "^x": { maxLength: 3 },
+      },
+      additionalProperties: { type: ["string", "number"] },
+    } as const satisfies JSONSchema7Definition;
+    expect(
+      mergeSchemaDefinitions(structuredClone(lSchema), structuredClone(rSchema))
+    ).toEqual({
+      patternProperties: {
+        "^x": { minLength: 2, maxLength: 3 },
+      },
+      additionalProperties: { type: ["string", "number"] },
+    });
+  });
+
+  describe("pattern combination growth", () => {
+    it("does not multiply pattern combinations for unrelated patterns", () => {
+      const { mergeArrayOfSchemaDefinitions } = createMerger();
+      const schemas: JSONSchema7Definition[] = Array.from(
+        { length: 8 },
+        (_, i) => ({
+          patternProperties: { [`^x${i}$`]: { minLength: 1 } },
+          additionalProperties: { maxLength: 100 + i },
+        })
+      );
+      const result = mergeArrayOfSchemaDefinitions(schemas);
+      if (typeof result === "boolean") {
+        throw new Error("Expected an object schema");
+      }
+      // Both plain and enriched patterns are kept, but unrelated pairs must
+      // not be materialized into additional combinations. Without this guard
+      // the pattern count grows by roughly a factor of three per merge.
+      expect(Object.keys(result.patternProperties ?? {}).length).toBeLessThan(
+        1000
+      );
+    });
+  });
 });

@@ -14,6 +14,7 @@ import {
 import { identity } from "../../function.ts";
 import { lcm } from "../../math.ts";
 import { getOwn, setOwn } from "../../object.ts";
+import { escapeRegExp } from "../../regexp.ts";
 import {
   isAllowAnySchema,
   isSchemaWithItems,
@@ -21,7 +22,6 @@ import {
 } from "../json-schema.ts";
 
 import { simplePatternsMerger } from "./patterns.ts";
-import { createPatternSubtractor } from "./pattern-subtractor.ts";
 
 type SchemaKey = keyof JSONSchema7;
 
@@ -158,10 +158,14 @@ function appendKeyConstraints(
       if (matches === undefined) {
         return true;
       }
+      // The property is already rejected, so additional constraints would be
+      // discarded by the caller. Keep scanning only to record all matches.
       hasFalseSchema = true;
       continue;
     }
-    target.push(s);
+    if (!hasFalseSchema) {
+      target.push(s);
+    }
   }
   return hasFalseSchema;
 }
@@ -259,6 +263,53 @@ function intersectSchemaTypes(
  * A merger function combines two values for a specific JSON Schema keyword.
  */
 export type Merger<T> = (a: T, b: T) => T;
+
+/**
+ * Creates a pattern subtractor that removes property names and names matching
+ * the given patterns from the language of a pattern.
+ *
+ * The subtractor is an implementation detail of `propertiesAssigner` and is
+ * intentionally not exported.
+ */
+function createPatternSubtractor(mergePatterns: Merger<string>) {
+  return (pattern: string, propertyNames: string[], patterns: string[]) => {
+    const propertyNamesLen = propertyNames.length;
+    const patternsLen = patterns.length;
+    let names: string | undefined;
+    if (propertyNamesLen > 0) {
+      const regExp = new RegExp(pattern);
+      for (let i = 0; i < propertyNamesLen; i++) {
+        const name = propertyNames[i]!;
+        if (!regExp.test(name)) {
+          continue;
+        }
+        const escapedName = escapeRegExp(name);
+        names = names === undefined ? escapedName : `${names}|${escapedName}`;
+      }
+    }
+    if (names === undefined && patternsLen === 0) {
+      return pattern;
+    }
+    const excluded: string[] = [];
+    if (names !== undefined) {
+      // `$` also matches before a trailing newline, so assert the true end of
+      // the property name instead.
+      excluded.push(`(?:${names})(?![\\s\\S])`);
+    }
+    if (patternsLen > 0) {
+      let alternatives = patterns[0]!;
+      for (let i = 1; i < patternsLen; i++) {
+        alternatives += `|${patterns[i]!}`;
+      }
+      // Reproduce `RegExp.prototype.test` search semantics inside the anchored
+      // lookahead. `[\s\S]` (unlike `.`) can also skip line terminators.
+      excluded.push(`[\\s\\S]*(?:${alternatives})`);
+    }
+    // `^(?!...)` matches names that are not excluded, so combining it with the
+    // original pattern yields the required subset.
+    return mergePatterns(pattern, `^(?!(?:${excluded.join("|")}))`);
+  };
+}
 
 /**
  * A validation function that ensures consistency between two schema keywords.
@@ -400,7 +451,7 @@ export function createMerger({
   checks = DEFAULT_CHECKS,
   mergers,
 }: MergeOptions = {}) {
-  const subtractPattern = createPatternSubtractor({ mergePatterns });
+  const subtractPattern = createPatternSubtractor(mergePatterns);
   function mergeArrayOfSchemaDefinitions(
     schemas: JSONSchema7Definition[]
   ): JSONSchema7Definition {
@@ -676,19 +727,31 @@ export function createMerger({
     // (lPatterns and rPatterns) or (lPatterns and rAdditional) or (rPatterns and lAdditional)
     let patterns: Record<string, JSONSchema7Definition> = {};
     const matchedPatterns = new Set<string>();
+    // An `additionalProperties: false` side keeps only the intersection of the
+    // two pattern languages, so every pair has to be materialized. Otherwise
+    // both plain patterns are retained and JSON Schema applies their schemas
+    // together, making pair combinations of unrelated patterns redundant.
+    // Pairs where one pattern is a subset of the other still need a merged
+    // entry because the subset pattern's plain entry is skipped.
+    const needAllPairCombinations =
+      lAdditional === false || rAdditional === false;
     if (lPatternKeys.length > 0 && rPatternKeys.length > 0) {
       createPairCombinations(lPatternKeys, rPatternKeys, (lKey, rKey) => {
-        if (isSubRegExp(lKey, rKey)) {
+        const isLKeySubset = isSubRegExp(lKey, rKey);
+        if (isLKeySubset) {
           matchedPatterns.add(lKey);
         }
-        if (isSubRegExp(rKey, lKey)) {
+        const isRKeySubset = isSubRegExp(rKey, lKey);
+        if (isRKeySubset) {
           matchedPatterns.add(rKey);
         }
-        setOwn(
-          patterns,
-          mergePatterns(lKey, rKey),
-          mergeSchemaDefinitions(lPatterns![lKey]!, rPatterns![rKey]!)
-        );
+        if (needAllPairCombinations || isLKeySubset || isRKeySubset) {
+          setOwn(
+            patterns,
+            mergePatterns(lKey, rKey),
+            mergeSchemaDefinitions(lPatterns![lKey]!, rPatterns![rKey]!)
+          );
+        }
       });
     }
     patterns = assignPatternPropertiesAndAdditionalPropertiesMerge(
