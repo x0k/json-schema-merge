@@ -758,45 +758,6 @@ describe("properties", () => {
       }
     });
 
-    it("uses a custom `subtractPattern`", () => {
-      const calls: [string, string[], string[]][] = [];
-      const { mergeSchemaDefinitions: merge } = createMerger({
-        subtractPattern: (pattern, propertyNames, patterns) => {
-          calls.push([pattern, propertyNames, patterns]);
-          return `(?=${pattern})(?!(?:${propertyNames.join("|")})(?![\\s\\S]))`;
-        },
-      });
-      const lSchema = {
-        properties: {
-          id: true,
-        },
-        additionalProperties: {
-          type: "string",
-        },
-      } as const satisfies JSONSchema7Definition;
-      const rSchema = {
-        patternProperties: {
-          "^i": true,
-        },
-      } as const satisfies JSONSchema7Definition;
-      const result = merge(structuredClone(lSchema), structuredClone(rSchema));
-      expect(calls).toEqual([["^i", ["id"], []]]);
-      expect(result).toEqual({
-        properties: {
-          id: true,
-        },
-        additionalProperties: {
-          type: "string",
-        },
-        patternProperties: {
-          "^i": true,
-          "(?=^i)(?!(?:id)(?![\\s\\S]))": {
-            type: "string",
-          },
-        },
-      });
-    });
-
     it("subtracts only exact property names, not names with a trailing newline", () => {
       const { mergeSchemaDefinitions: merge } = createMerger();
       const lSchema = {
@@ -963,6 +924,50 @@ describe("properties", () => {
         { ix: "x" },
         { id: 1, ix: "x" },
         { id: 1, other: 2 },
+      ];
+      for (const [a, b] of [
+        [lSchema, rSchema],
+        [rSchema, lSchema],
+      ] as const) {
+        const result = mergeSchemaDefinitions(
+          structuredClone(a),
+          structuredClone(b)
+        );
+        values.forEach((val) => {
+          validateInputOutput({ allOf: [a, b] }, result, val);
+        });
+      }
+    });
+
+    it("records properties declared on both sides when subtracting patterns", () => {
+      const lSchema = {
+        type: "object",
+        properties: {
+          id: true,
+        },
+        patternProperties: {
+          "^i": {
+            maxLength: 3,
+          },
+        },
+      } as const satisfies JSONSchema7Definition;
+      const rSchema = {
+        type: "object",
+        properties: {
+          id: true,
+        },
+        additionalProperties: {
+          type: "string",
+        },
+      } as const satisfies JSONSchema7Definition;
+      const values = [
+        {},
+        { id: 1 },
+        { id: "x" },
+        { id: "toolong" },
+        { ix: 1 },
+        { ix: "x" },
+        { ix: "toolong" },
       ];
       for (const [a, b] of [
         [lSchema, rSchema],

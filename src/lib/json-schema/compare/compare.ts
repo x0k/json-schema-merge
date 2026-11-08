@@ -190,7 +190,9 @@ export function createComparator({
           if (av === bv) {
             continue;
           }
-          const cmp = getOwn(COMPARATORS, key) ?? compareOptionalSchemaValues;
+          // `COMPARATORS` has a null prototype, so inherited keys cannot leak
+          // in.
+          const cmp = COMPARATORS[key] ?? compareOptionalSchemaValues;
           const d = cmp(av as undefined, bv as undefined);
           if (d !== 0) {
             return d;
@@ -251,9 +253,11 @@ export function createComparator({
       compareSchemaDefinitions
     );
 
+  // A null prototype makes plain keyed reads safe: schema keys such as
+  // `constructor` must not resolve to inherited members.
   const COMPARATORS: {
     [K in keyof JSONSchema7]-?: Comparator<JSONSchema7[K]>;
-  } = {
+  } = Object.assign(Object.create(null), {
     $id: compareOptionalSameTypeSchemaPrimitives,
     $comment: compareOptionalSameTypeSchemaPrimitives,
     $defs: compareRecordOfOptionalSchemasWithEmptyRecordDefault,
@@ -336,7 +340,9 @@ export function createComparator({
         )
       )
     ),
-  };
+  } satisfies {
+    [K in keyof JSONSchema7]-?: Comparator<JSONSchema7[K]>;
+  });
 
   return {
     compareSchemaValues,

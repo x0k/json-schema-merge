@@ -21,10 +21,7 @@ import {
 } from "../json-schema.ts";
 
 import { simplePatternsMerger } from "./patterns.ts";
-import {
-  createPatternSubtractor,
-  type PatternSubtractor,
-} from "./pattern-subtractor.ts";
+import { createPatternSubtractor } from "./pattern-subtractor.ts";
 
 type SchemaKey = keyof JSONSchema7;
 
@@ -139,21 +136,53 @@ const EMPTY_PATTERNS_AND_KEYS: [CompiledPattern[], string[]] = [[], []];
 function appendKeyConstraints(
   target: (JSONSchema7 | true)[],
   key: string,
-  patterns: CompiledPattern[]
+  patterns: CompiledPattern[],
+  matches?: string[][]
 ): boolean {
+  let hasFalseSchema = false;
   const l = patterns.length;
   for (let i = 0; i < l; i++) {
     const p = patterns[i]!;
     if (!p.regExp.test(key)) {
       continue;
     }
+    if (matches !== undefined) {
+      // Reuse this test for pattern subtraction: the name is known to match
+      // pattern `i`, so the subtractor will not have to scan it again. Keep
+      // collecting after a `false` schema because the name still has to be
+      // excluded from the opposite `additionalProperties`.
+      matches[i]!.push(key);
+    }
     const s = p.schema;
     if (s === false) {
-      return true;
+      if (matches === undefined) {
+        return true;
+      }
+      hasFalseSchema = true;
+      continue;
     }
     target.push(s);
   }
-  return false;
+  return hasFalseSchema;
+}
+
+/**
+ * Records which patterns match `key` without building constraints.
+ *
+ * Used for properties that short-circuit before `appendKeyConstraints`, so the
+ * pattern match cache stays complete.
+ */
+function recordPatternMatches(
+  key: string,
+  patterns: CompiledPattern[],
+  matches: string[][]
+) {
+  const l = patterns.length;
+  for (let i = 0; i < l; i++) {
+    if (patterns[i]!.regExp.test(key)) {
+      matches[i]!.push(key);
+    }
+  }
 }
 
 const ITEMS_ASSIGNER_KEYS = [
@@ -295,18 +324,6 @@ export interface MergeOptions {
   mergePatterns?: Merger<string>;
 
   /**
-   * Function for subtracting property names and names matching the given
-   * patterns from a pattern.
-   *
-   * The default implementation builds a negative lookahead pattern and
-   * combines it with the configured `mergePatterns`.
-   *
-   * Use `createPatternSubtractor` to reuse the default implementation
-   * with custom options.
-   */
-  subtractPattern?: PatternSubtractor;
-
-  /**
    * Intersector function for merging JSON values (enum keyword)
    * @default intersection
    */
@@ -375,7 +392,6 @@ export const DEFAULT_CHECKS = [
 
 export function createMerger({
   mergePatterns = simplePatternsMerger,
-  subtractPattern = createPatternSubtractor({ mergePatterns }),
   isSubRegExp = Object.is,
   intersectJson = intersection,
   deduplicateJsonSchemaDef = identity,
@@ -384,6 +400,7 @@ export function createMerger({
   checks = DEFAULT_CHECKS,
   mergers,
 }: MergeOptions = {}) {
+  const subtractPattern = createPatternSubtractor({ mergePatterns });
   function mergeArrayOfSchemaDefinitions(
     schemas: JSONSchema7Definition[]
   ): JSONSchema7Definition {
@@ -409,21 +426,39 @@ export function createMerger({
     patterns: CompiledPattern[],
     oppositeValue: JSONSchema7Definition | undefined,
     oppositePatterns: CompiledPattern[],
-    oppositeAdditional: JSONSchema7 | false | undefined
+    oppositeAdditional: JSONSchema7 | false | undefined,
+    oppositePatternMatches?: string[][]
   ): JSONSchema7Definition | undefined {
     constraints.length = 0;
     if (value === false) {
+      // A `false` property is still a declared name, so it has to stay in the
+      // pattern match cache used by `subtractPattern`. The merged property is
+      // `false` either way, which rejects the name.
+      if (oppositePatternMatches !== undefined) {
+        recordPatternMatches(key, oppositePatterns, oppositePatternMatches);
+      }
       return false;
     }
     constraints.push(value);
     const isOppositeValueDefined = oppositeValue !== undefined;
     if (isOppositeValueDefined) {
       if (oppositeValue === false) {
+        // See the `value === false` branch above.
+        if (oppositePatternMatches !== undefined) {
+          recordPatternMatches(key, oppositePatterns, oppositePatternMatches);
+        }
         return false;
       }
       constraints.push(oppositeValue);
     }
-    if (appendKeyConstraints(constraints, key, oppositePatterns)) {
+    if (
+      appendKeyConstraints(
+        constraints,
+        key,
+        oppositePatterns,
+        oppositePatternMatches
+      )
+    ) {
       return false;
     }
     const isNotYetAllowed = constraints.length < 2;
@@ -454,7 +489,8 @@ export function createMerger({
     oppositeAdditional: JSONSchema7Definition,
     isOppositeTruthy: boolean,
     oppositePropertyNames: string[],
-    oppositePatterns: string[]
+    oppositePatterns: string[],
+    oppositePatternMatches: string[][] | undefined
   ) {
     const l = patternKeys.length;
     if (l > 0 && oppositeAdditional !== false) {
@@ -480,7 +516,11 @@ export function createMerger({
             hasExcludedNames || hasExcludedPatterns
               ? subtractPattern(
                   pattern,
-                  oppositePropertyNames,
+                  // These are exactly the opposite property names that match
+                  // this pattern. They were recorded while merging properties,
+                  // so the subtractor does not need to scan the full name
+                  // list again.
+                  oppositePatternMatches?.[i] ?? oppositePropertyNames,
                   oppositePatterns
                 )
               : pattern;
@@ -562,6 +602,26 @@ export function createMerger({
     const constraints: (JSONSchema7 | true)[] = [];
     const lKeysSet = new Set<string>();
     const mappedRAdditional = isRAddTruthy ? undefined : rAdditional;
+    const mappedLAdditional = isLAddTruthy ? undefined : lAdditional;
+    // The property loops below already test names against the opposite side's
+    // patterns. Record which names matched so subtraction can reuse the result
+    // instead of scanning every opposite property name again.
+    //
+    // `rPatternMatches` belongs to the right side's patterns: the left `keys`
+    // loop tests left property names against them. `lPatternMatches` is the
+    // mirror image.
+    const rPatternMatches =
+      mappedLAdditional !== undefined &&
+      mappedLAdditional !== false &&
+      rPatternKeys.length > 0
+        ? rPatternKeys.map(() => [] as string[])
+        : undefined;
+    const lPatternMatches =
+      mappedRAdditional !== undefined &&
+      mappedRAdditional !== false &&
+      lPatternKeys.length > 0
+        ? lPatternKeys.map(() => [] as string[])
+        : undefined;
     for (let i = 0; i < lKeysLen; i++) {
       const key = lKeys[i]!;
       lKeysSet.add(key);
@@ -572,7 +632,8 @@ export function createMerger({
         lCompiledPatterns,
         getOwn(rProps, key),
         rCompiledPatterns,
-        mappedRAdditional
+        mappedRAdditional,
+        rPatternMatches
       );
       if (prop !== undefined) {
         setOwn(properties, key, prop);
@@ -580,10 +641,16 @@ export function createMerger({
     }
     const rKeys = Object.keys(rProps);
     const rKeysLen = rKeys.length;
-    const mappedLAdditional = isLAddTruthy ? undefined : lAdditional;
     for (let i = 0; i < rKeysLen; i++) {
       const key = rKeys[i]!;
       if (lKeysSet.has(key)) {
+        // The name is declared on both sides. The left loop could only record
+        // its matches against the right patterns, so record its matches
+        // against the left patterns here. Otherwise the left patterns would
+        // miss this name when their subtraction runs.
+        if (lPatternMatches !== undefined) {
+          recordPatternMatches(key, lCompiledPatterns, lPatternMatches);
+        }
         continue;
       }
       const prop = createProperty(
@@ -593,7 +660,8 @@ export function createMerger({
         rCompiledPatterns,
         undefined,
         lCompiledPatterns,
-        mappedLAdditional
+        mappedLAdditional,
+        lPatternMatches
       );
       if (prop !== undefined) {
         setOwn(properties, key, prop);
@@ -631,7 +699,8 @@ export function createMerger({
       rAdditional,
       isRAddTruthy,
       rKeys,
-      rPatternKeys
+      rPatternKeys,
+      lPatternMatches
     );
     patterns = assignPatternPropertiesAndAdditionalPropertiesMerge(
       patterns,
@@ -641,7 +710,8 @@ export function createMerger({
       lAdditional,
       isLAddTruthy,
       lKeys,
-      lPatternKeys
+      lPatternKeys,
+      rPatternMatches
     );
     assignSchemaDefinitionOrRecordOfSchemaDefinitions(
       target,
@@ -844,7 +914,9 @@ export function createMerger({
     const l = rKeys.length;
     for (let i = 0; i < l; i++) {
       const rKey = rKeys[i]!;
-      const rv = getOwn(right, rKey);
+      // `rKeys` comes from `Reflect.ownKeys(right)`, so this key is guaranteed
+      // to be an own property and a plain read cannot see an inherited value.
+      const rv = right[rKey];
       if (rv === undefined) {
         continue;
       }
@@ -868,7 +940,8 @@ export function createMerger({
         setOwn(target, rKey, rv as never);
         continue;
       }
-      const merge = getOwn(MERGERS, rKey) ?? defaultMerger;
+      // `MERGERS` has a null prototype, so inherited keys cannot leak in.
+      const merge = MERGERS[rKey] ?? defaultMerger;
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       setOwn(target, rKey, merge(lv as never, rv as never) as never);
     }
@@ -885,9 +958,11 @@ export function createMerger({
     mergeSchemaDefinitions
   );
 
+  // A null prototype makes plain keyed reads safe: schema keys such as
+  // `constructor` must not resolve to inherited members.
   const MERGERS: {
     [K in SchemaKey]?: Merger<Exclude<JSONSchema7[K], undefined>>;
-  } = {
+  } = Object.assign(Object.create(null), {
     $id: defaultMerger,
     $ref: defaultMerger,
     $schema: defaultMerger,
@@ -1016,7 +1091,7 @@ export function createMerger({
     [K in Exclude<SchemaKey, AssignerKey>]-?: Merger<
       Exclude<JSONSchema7[K], undefined>
     >;
-  };
+  });
 
   return {
     mergeSchemaDefinitions,
