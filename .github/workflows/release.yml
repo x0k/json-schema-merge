@@ -5,6 +5,9 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  PNPM_CONFIG_PROVENANCE: "true"
+
 on:
   push:
     branches:
@@ -34,11 +37,11 @@ jobs:
         run: pnpm run ci:build
 
       - name: Create and publish versions
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          version: pnpm ci:version
-          publish: pnpm exec changeset publish
-          commit: "[ci] release"
-          title: "[ci] release"
+          version-script: pnpm ci:version
+          publish-script: pnpm exec changeset publish
+          commit-message: "[ci] release"
+          pr-title: "[ci] release"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
