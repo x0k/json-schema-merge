@@ -1259,6 +1259,27 @@ const cases: TestCase[] = [
       },
     ],
   },
+  {
+    name: "Patterns matching after a line terminator",
+    left: "d",
+    right: "a",
+    data: [
+      {
+        value: "a\nd",
+        expected: {
+          simplePatternsMerger: true,
+          legacyPatternsMerger: false,
+        },
+      },
+      {
+        value: "a",
+        expected: {
+          simplePatternsMerger: false,
+          legacyPatternsMerger: false,
+        },
+      },
+    ],
+  },
 ];
 
 describe("Pattern Mergers", () => {
