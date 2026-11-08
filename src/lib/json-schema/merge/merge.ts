@@ -20,6 +20,10 @@ import {
 } from "../json-schema.ts";
 
 import { simplePatternsMerger } from "./patterns.ts";
+import {
+  createPatternSubtractor,
+  type PatternSubtractor,
+} from "./pattern-subtractor.ts";
 
 type SchemaKey = keyof JSONSchema7;
 
@@ -286,6 +290,18 @@ export interface MergeOptions {
   mergePatterns?: Merger<string>;
 
   /**
+   * Function for subtracting property names and names matching the given
+   * patterns from a pattern.
+   *
+   * The default implementation builds a negative lookahead pattern and
+   * combines it with the configured `mergePatterns`.
+   *
+   * Use `createPatternSubtractor` to reuse the default implementation
+   * with custom options.
+   */
+  subtractPattern?: PatternSubtractor;
+
+  /**
    * Intersector function for merging JSON values (enum keyword)
    * @default intersection
    */
@@ -354,6 +370,7 @@ export const DEFAULT_CHECKS = [
 
 export function createMerger({
   mergePatterns = simplePatternsMerger,
+  subtractPattern = createPatternSubtractor({ mergePatterns }),
   isSubRegExp = Object.is,
   intersectJson = intersection,
   deduplicateJsonSchemaDef = identity,
@@ -430,23 +447,53 @@ export function createMerger({
     patternKeys: string[],
     matchedPatterns: Set<string>,
     oppositeAdditional: JSONSchema7Definition,
-    isOppositeTruthy: boolean
+    isOppositeTruthy: boolean,
+    oppositePropertyNames: string[],
+    oppositePatterns: string[]
   ) {
     const l = patternKeys.length;
     if (l > 0 && oppositeAdditional !== false) {
       if (isOppositeTruthy) {
-        // TODO: in some cases we can just assign new value instead of copying
-        Object.assign(target, patterns);
+        // Pair combinations already contain the merged schemas for
+        // overlapping patterns, so don't overwrite them.
+        for (let i = 0; i < l; i++) {
+          const pattern = patternKeys[i]!;
+          if (target[pattern] === undefined) {
+            target[pattern] = patterns![pattern]!;
+          }
+        }
       } else {
         for (let i = 0; i < l; i++) {
           const pattern = patternKeys[i]!;
           if (matchedPatterns.has(pattern)) {
             continue;
           }
-          target[pattern] = mergeSchemaDefinitions(
-            patterns![pattern]!,
-            oppositeAdditional
-          );
+          const schema = target[pattern] ?? patterns![pattern]!;
+          const hasExcludedNames = oppositePropertyNames.length > 0;
+          const hasExcludedPatterns = oppositePatterns.length > 0;
+          const enrichedPattern =
+            hasExcludedNames || hasExcludedPatterns
+              ? subtractPattern(
+                  pattern,
+                  oppositePropertyNames,
+                  oppositePatterns
+                )
+              : pattern;
+          if (enrichedPattern === pattern) {
+            target[pattern] = mergeSchemaDefinitions(
+              schema,
+              oppositeAdditional
+            );
+          } else {
+            // The opposite `additionalProperties` does not apply to
+            // properties explicitly declared on the opposite side or
+            // to names covered by its `patternProperties`.
+            target[pattern] = schema;
+            target[enrichedPattern] = mergeSchemaDefinitions(
+              schema,
+              oppositeAdditional
+            );
+          }
         }
       }
     }
@@ -574,7 +621,9 @@ export function createMerger({
       lPatternKeys,
       matchedPatterns,
       rAdditional,
-      isRAddTruthy
+      isRAddTruthy,
+      rKeys,
+      rPatternKeys
     );
     patterns = assignPatternPropertiesAndAdditionalPropertiesMerge(
       patterns,
@@ -582,7 +631,9 @@ export function createMerger({
       rPatternKeys,
       matchedPatterns,
       lAdditional,
-      isLAddTruthy
+      isLAddTruthy,
+      lKeys,
+      lPatternKeys
     );
     assignSchemaDefinitionOrRecordOfSchemaDefinitions(
       target,

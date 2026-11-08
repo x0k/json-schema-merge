@@ -2,6 +2,8 @@
 
 A library for merging **JSON Schema Draft-07** definitions with no runtime dependencies.
 
+**Requirements**: Node.js 22 or newer.
+
 ```shell
 npm i @x0k/json-schema-merge
 ```
@@ -78,6 +80,30 @@ export type Intersector<T> = (a: T[], b: T[]) => T[];
 export type Merger<T> = (a: T, b: T) => T;
 
 /**
+ * A pattern subtractor removes property names and names matching the given
+ * patterns from a pattern.
+ */
+export type PatternSubtractor = (
+  pattern: string,
+  propertyNames: string[],
+  patterns: string[]
+) => string;
+
+export interface PatternSubtractorOptions {
+  /**
+   * Merger function for combining regular expression patterns.
+   * @default simplePatternsMerger
+   */
+  mergePatterns?: Merger<string>;
+
+  /**
+   * Escapes a property name so it can be embedded as a literal in a pattern.
+   * @default escapeRegExp
+   */
+  escapePropertyName?: (name: string) => string;
+}
+
+/**
  * An assigner function operates at the schema-object level.
  * It receives the partially merged `target` and the original
  * `left` and `right` schemas.
@@ -117,6 +143,18 @@ export interface MergeOptions {
    * @default simplePatternsMerger
    */
   mergePatterns?: Merger<string>;
+
+  /**
+   * Function for subtracting property names and names matching the given
+   * patterns from a pattern.
+   *
+   * The default implementation builds a negative lookahead pattern and
+   * combines it with the configured `mergePatterns`.
+   *
+   * Use `createPatternSubtractor` to reuse the default implementation
+   * with custom options.
+   */
+  subtractPattern?: PatternSubtractor;
 
   /**
    * Intersector function for merging JSON values (enum keyword)
@@ -167,6 +205,8 @@ export interface MergeOptions {
   checks?: Iterable<CheckEntry<SchemaKey, SchemaKey>>;
 }
 ```
+
+Use `createPatternSubtractor` to reuse the default subtraction algorithm with custom `mergePatterns` or `escapePropertyName` options.
 
 ## Compatibility
 
