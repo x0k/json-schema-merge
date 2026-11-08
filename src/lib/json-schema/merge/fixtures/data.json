@@ -609,6 +609,34 @@
         }
       ]
     },
+    "a23": {
+      "allOf": [
+        {
+          "type": ["array", "string", "number"],
+          "oneOf": [
+            {
+              "type": ["array", "object"],
+              "allOf": [
+                {
+                  "type": "object"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": ["array", "string"],
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ]
+        }
+      ]
+    },
     "a24": {
       "allOf": [
         {},
@@ -779,6 +807,34 @@
         },
         {
           "type": ["array", "string"]
+        }
+      ]
+    },
+    "a30": {
+      "allOf": [
+        {
+          "type": ["array", "string", "number"],
+          "oneOf": [
+            {
+              "type": ["array", "object"],
+              "allOf": [
+                {
+                  "type": "object"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": ["array", "string"],
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ]
         }
       ]
     }
