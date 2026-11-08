@@ -43,25 +43,27 @@
     "test": "vitest run --exclude '.direnv/**'",
     "bench": "vitest bench --exclude '.direnv/**'",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write .",
-    "lint": "prettier --check .",
-    "check": "npm run lint && npm run typecheck && npm run test",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run test",
     "ci:build": "npm run check && npm run build",
     "ci:version": "changeset version && pnpm install --no-frozen-lockfile"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.7.0",
-    "@changesets/cli": "^2.31.0",
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.3",
     "@types/json-schema-compare": "^0.2.4",
     "@types/json-schema-merge-allof": "^0.6.5",
     "ajv": "^8.20.0",
     "allof-merge": "^0.6.8",
     "json-schema-compare": "^0.2.2",
     "json-schema-merge-allof": "^0.8.1",
-    "prettier": "^3.9.1",
-    "publint": "^0.3.21",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "oxfmt": "^0.77.0",
+    "oxlint": "^1.92.0",
+    "publint": "^0.3.25",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   },
   "dependencies": {
     "@types/json-schema": "^7.0.15"
