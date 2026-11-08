@@ -19,7 +19,7 @@
           buildInputs = [
             mk.packages.${system}.default
             pkgs.nodejs_26
-            pkgs.pnpm
+            pkgs.pnpm_12
           ];
         };
       };
