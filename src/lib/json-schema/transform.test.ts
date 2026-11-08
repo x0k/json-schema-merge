@@ -1,8 +1,7 @@
-import { describe, expect, it } from "vitest";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
+import { describe, expect, it } from "vitest";
 
 import { identity } from "../function.ts";
-
 import { transformSchemaDefinition } from "./transform.ts";
 
 describe("transformSchemaDefinition", () => {

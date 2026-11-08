@@ -20,7 +20,6 @@ import {
   isSchemaWithItems,
   type SchemaWithItems,
 } from "../json-schema.ts";
-
 import { simplePatternsMerger } from "./patterns.ts";
 
 type SchemaKey = keyof JSONSchema7;

@@ -1,12 +1,13 @@
 import { deepEqual } from "node:assert/strict";
+
 import type { JSONSchema7 } from "json-schema";
 
-import { createDeduplicator, createIntersector } from "../src/lib/array.ts";
 import {
   createMerger,
   createComparator,
   createShallowAllOfMerge,
 } from "../src/index.ts";
+import { createDeduplicator, createIntersector } from "../src/lib/array.ts";
 
 const { compareSchemaDefinitions, compareSchemaValues } = createComparator();
 

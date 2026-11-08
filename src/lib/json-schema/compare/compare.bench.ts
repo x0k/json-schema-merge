@@ -1,6 +1,6 @@
-import { describe, test } from "vitest";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import jsonSchemaCompare from "json-schema-compare";
+import { describe, test } from "vitest";
 
 import { createComparator } from "./compare.ts";
 

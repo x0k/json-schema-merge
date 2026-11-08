@@ -1,19 +1,17 @@
-import { describe, test } from "vitest";
+import { merge as allOfMerge } from "allof-merge";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import jsonSchemaMergeAllOf, { type Options } from "json-schema-merge-allof";
-import { merge as allOfMerge } from "allof-merge";
+import { describe, test } from "vitest";
 
 import { createDeduplicator, createIntersector } from "../../array.ts";
-
 import { createComparator } from "../compare/index.ts";
-
-import testData from "./fixtures/data.json" with { type: "json" };
-import userSchema from "./fixtures/user-schema.json" with { type: "json" };
-import { createMerger } from "./merge.ts";
 import {
   createDeepAllOfMerge,
   createShallowAllOfMerge,
 } from "./all-of-merge.ts";
+import testData from "./fixtures/data.json" with { type: "json" };
+import userSchema from "./fixtures/user-schema.json" with { type: "json" };
+import { createMerger } from "./merge.ts";
 
 const { compareSchemaValues, compareSchemaDefinitions } = createComparator();
 

@@ -2,12 +2,12 @@
 // MIT © Martin Hansen
 // Modifications made by Roman Krasilnikov.
 
+import { Ajv } from "ajv";
 import type { JSONSchema7Definition } from "json-schema";
 import { describe, expect, it } from "vitest";
-import { Ajv } from "ajv";
 
-import { createMerger } from "./merge.ts";
 import { createShallowAllOfMerge } from "./all-of-merge.ts";
+import { createMerger } from "./merge.ts";
 import { legacyPatternsMerger } from "./patterns.ts";
 
 const { mergeSchemaDefinitions, mergeArrayOfSchemaDefinitions } = createMerger({

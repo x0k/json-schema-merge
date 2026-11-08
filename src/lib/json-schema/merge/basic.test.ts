@@ -8,12 +8,11 @@ import { describe, expect, it } from "vitest";
 
 import { createDeduplicator, createIntersector } from "../../array.ts";
 import { createComparator } from "../../json-schema/compare/index.ts";
-
-import { createMerger } from "./merge.ts";
 import {
   createDeepAllOfMerge,
   createShallowAllOfMerge,
 } from "./all-of-merge.ts";
+import { createMerger } from "./merge.ts";
 import { legacyPatternsMerger } from "./patterns.ts";
 
 const { compareSchemaValues, compareSchemaDefinitions } = createComparator();
