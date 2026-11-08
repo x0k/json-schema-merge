@@ -14,9 +14,6 @@
   },
   "author": "Roman Krasilnikov",
   "packageManager": "pnpm@11.8.0",
-  "engines": {
-    "node": ">=22"
-  },
   "sideEffects": false,
   "files": [
     "dist",

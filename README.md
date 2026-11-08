@@ -2,8 +2,6 @@
 
 A library for merging **JSON Schema Draft-07** definitions with no runtime dependencies.
 
-**Requirements**: Node.js 22 or newer.
-
 ```shell
 npm i @x0k/json-schema-merge
 ```
