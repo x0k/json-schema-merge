@@ -5,6 +5,9 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  PNPM_CONFIG_PROVENANCE: "true"
+
 on:
   push:
     branches:
