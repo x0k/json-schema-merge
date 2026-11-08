@@ -12,7 +12,7 @@ import {
   createDeduplicator,
   isArrayEmpty,
 } from "../../array.ts";
-import { isRecordEmpty } from "../../object.ts";
+import { getOwn, isRecordEmpty } from "../../object.ts";
 import { weakMemoize } from "../../memoize.ts";
 
 import { isAllowAnySchema, isSchemaObject } from "../json-schema.ts";
@@ -185,11 +185,15 @@ export function createComparator({
         const l = allKeys.length;
         for (let i = 0; i < l; i++) {
           const key = allKeys[i]!;
-          if (a[key] === b[key]) {
+          const av = getOwn(a, key);
+          const bv = getOwn(b, key);
+          if (av === bv) {
             continue;
           }
+          // `COMPARATORS` has a null prototype, so inherited keys cannot leak
+          // in.
           const cmp = COMPARATORS[key] ?? compareOptionalSchemaValues;
-          const d = cmp(a[key] as undefined, b[key] as undefined);
+          const d = cmp(av as undefined, bv as undefined);
           if (d !== 0) {
             return d;
           }
@@ -249,9 +253,11 @@ export function createComparator({
       compareSchemaDefinitions
     );
 
+  // A null prototype makes plain keyed reads safe: schema keys such as
+  // `constructor` must not resolve to inherited members.
   const COMPARATORS: {
     [K in keyof JSONSchema7]-?: Comparator<JSONSchema7[K]>;
-  } = {
+  } = Object.assign(Object.create(null), {
     $id: compareOptionalSameTypeSchemaPrimitives,
     $comment: compareOptionalSameTypeSchemaPrimitives,
     $defs: compareRecordOfOptionalSchemasWithEmptyRecordDefault,
@@ -334,7 +340,9 @@ export function createComparator({
         )
       )
     ),
-  };
+  } satisfies {
+    [K in keyof JSONSchema7]-?: Comparator<JSONSchema7[K]>;
+  });
 
   return {
     compareSchemaValues,
