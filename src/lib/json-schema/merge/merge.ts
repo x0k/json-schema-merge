@@ -87,15 +87,32 @@ function createMap<R>(items: Iterable<[SchemaKey[], R]>) {
   return map;
 }
 
-function assignSchemaDefinitionOrRecordOfSchemaDefinitions<
-  K extends {
-    [T in SchemaKey]: JSONSchema7[T] extends
-      | JSONSchema7Definition
-      | Record<string, JSONSchema7Definition>
-      | undefined
-      ? T
-      : never;
-  }[SchemaKey],
+export type SchemaDefinitionOrRecordKey = {
+  [T in SchemaKey]: JSONSchema7[T] extends
+    | JSONSchema7Definition
+    | Record<string, JSONSchema7Definition>
+    | undefined
+    ? T
+    : never;
+}[SchemaKey];
+
+export type SchemaDefinitionOrRecordAssigner = <
+  K extends SchemaDefinitionOrRecordKey,
+>(
+  target: JSONSchema7,
+  key: K,
+  value: JSONSchema7[K]
+) => void;
+
+/**
+ * Default assigner for schema definition or record keywords.
+ *
+ * It removes `undefined` and allow-any values (`true` or `{}`) because they do
+ * not constrain the schema. Override it through `MergeOptions` to keep values
+ * such as an explicit `additionalProperties: true`.
+ */
+export function assignSchemaDefinitionOrRecord<
+  K extends SchemaDefinitionOrRecordKey,
 >(target: JSONSchema7, key: K, value: JSONSchema7[K]) {
   if (value === undefined || isAllowAnySchema(value)) {
     delete target[key];
@@ -213,19 +230,6 @@ function assignCondition(target: JSONSchema7, source: JSONSchema7) {
   if (source.else !== undefined) {
     target.else = source.else;
   }
-  return target;
-}
-
-function assignItems(
-  target: JSONSchema7,
-  { items, additionalItems }: SchemaWithItems
-) {
-  target.items = items;
-  assignSchemaDefinitionOrRecordOfSchemaDefinitions(
-    target,
-    "additionalItems",
-    Array.isArray(items) ? additionalItems : undefined
-  );
   return target;
 }
 
@@ -395,6 +399,19 @@ export interface MergeOptions {
   defaultMerger?: Merger<any>;
 
   /**
+   * Assigner for schema definition or record keywords
+   * (`additionalProperties`, `additionalItems`, `properties`,
+   * `patternProperties`).
+   *
+   * The default implementation removes `undefined` and allow-any values
+   * (`true` or `{}`). Override it to keep explicit values such as
+   * `additionalProperties: true` or `additionalProperties: {}`.
+   *
+   * @default assignSchemaDefinitionOrRecord
+   */
+  assignSchemaDefinitionOrRecord?: SchemaDefinitionOrRecordAssigner;
+
+  /**
    * A mapping of schema keywords to merger functions.
    *
    * - A merger operates on **values of a single keyword** (`a`, `b` → merged value).
@@ -452,6 +469,8 @@ export function createMerger({
   assigners = [],
   checks = DEFAULT_CHECKS,
   mergers,
+  assignSchemaDefinitionOrRecord:
+    assignSchemaDefinition = assignSchemaDefinitionOrRecord,
 }: MergeOptions = {}) {
   const subtractPattern = createPatternSubtractor(mergePatterns);
   function mergeArrayOfSchemaDefinitions(
@@ -601,36 +620,49 @@ export function createMerger({
     return target;
   }
 
-  const propertiesAssigner: Assigner<JSONSchema7> = (
-    target,
-    {
+  function assignAdditional(
+    target: JSONSchema7,
+    key: "additionalItems" | "additionalProperties",
+    { [key]: l }: JSONSchema7,
+    { [key]: r }: JSONSchema7
+  ) {
+    assignSchemaDefinition(
+      target,
+      key,
+      l !== undefined && r !== undefined
+        ? mergeSchemaDefinitions(l, r)
+        : (l ?? r)
+    );
+  }
+
+  const propertiesAssigner: Assigner<JSONSchema7> = (target, l, r) => {
+    const {
       properties: lProps = {},
       patternProperties: lPatterns,
       additionalProperties: lAdditional = true,
-    },
-    {
+    } = l;
+    const {
       properties: rProps = {},
       patternProperties: rPatterns,
       additionalProperties: rAdditional = true,
-    }
-  ) => {
+    } = r;
     // Special case
     const isLAddTruthy = isAllowAnySchema(lAdditional);
     const isRAddTruthy = isAllowAnySchema(rAdditional);
     if (isLAddTruthy && isRAddTruthy) {
-      assignSchemaDefinitionOrRecordOfSchemaDefinitions(
+      assignSchemaDefinition(
         target,
         "properties",
         mergeRecordsOfSchemaDefinitions(lProps, rProps)
       );
-      assignSchemaDefinitionOrRecordOfSchemaDefinitions(
+      assignSchemaDefinition(
         target,
         "patternProperties",
         lPatterns && rPatterns
           ? mergeRecordsOfSchemaDefinitions(lPatterns, rPatterns)
           : (lPatterns ?? rPatterns)
       );
-      delete target.additionalProperties;
+      assignAdditional(target, "additionalProperties", l, r);
       return target;
     }
     // Additional Properties
@@ -638,7 +670,7 @@ export function createMerger({
       lAdditional,
       rAdditional
     );
-    assignSchemaDefinitionOrRecordOfSchemaDefinitions(
+    assignSchemaDefinition(
       target,
       "additionalProperties",
       additionalProperties
@@ -721,11 +753,7 @@ export function createMerger({
         setOwn(properties, key, prop);
       }
     }
-    assignSchemaDefinitionOrRecordOfSchemaDefinitions(
-      target,
-      "properties",
-      properties
-    );
+    assignSchemaDefinition(target, "properties", properties);
     // Pattern Properties
     // (lPatterns and rPatterns) or (lPatterns and rAdditional) or (rPatterns and lAdditional)
     let patterns: Record<string, JSONSchema7Definition> = {};
@@ -779,13 +807,22 @@ export function createMerger({
       lPatternKeys,
       rPatternMatches
     );
-    assignSchemaDefinitionOrRecordOfSchemaDefinitions(
-      target,
-      "patternProperties",
-      patterns
-    );
+    assignSchemaDefinition(target, "patternProperties", patterns);
     return target;
   };
+
+  function assignItems(
+    target: JSONSchema7,
+    { items, additionalItems }: SchemaWithItems
+  ) {
+    target.items = items;
+    assignSchemaDefinition(
+      target,
+      "additionalItems",
+      Array.isArray(items) ? additionalItems : undefined
+    );
+    return target;
+  }
 
   const itemsAssigner: Assigner<JSONSchema7> = (target, l, r) => {
     // `additionalItems` only applies next to an array of `items`, so a side
@@ -808,12 +845,12 @@ export function createMerger({
     const itemsArray: JSONSchema7Definition[] = [];
     target.items = itemsArray;
     if (isLArr && isRArr) {
-      const [l, additional, tail] =
+      const [commonLength, additional, tail] =
         lItems.length < rItems.length
           ? [lItems.length, lAdditional, rItems]
           : [rItems.length, rAdditional, lItems];
       let i = 0;
-      for (; i < l; i++) {
+      for (; i < commonLength; i++) {
         itemsArray.push(mergeSchemaDefinitions(lItems[i]!, rItems[i]!));
       }
       if (additional === false) {
@@ -828,13 +865,7 @@ export function createMerger({
               : mergeSchemaDefinitions(tail[i]!, additional)
           );
         }
-        assignSchemaDefinitionOrRecordOfSchemaDefinitions(
-          target,
-          "additionalItems",
-          lAdditional !== undefined && rAdditional !== undefined
-            ? mergeSchemaDefinitions(lAdditional, rAdditional)
-            : (lAdditional ?? rAdditional)
-        );
+        assignAdditional(target, "additionalItems", l, r);
       }
     } else if (isLArr || isRArr) {
       const [arr, item, additional] = (
@@ -844,7 +875,7 @@ export function createMerger({
         JSONSchema7Definition,
         JSONSchema7Definition | undefined,
       ];
-      assignSchemaDefinitionOrRecordOfSchemaDefinitions(
+      assignSchemaDefinition(
         target,
         "additionalItems",
         // A schema-valued `items` applies to every element, including those

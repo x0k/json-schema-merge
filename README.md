@@ -137,6 +137,19 @@ export interface MergeOptions {
   defaultMerger?: Merger<any>;
 
   /**
+   * Assigner for schema definition or record keywords
+   * (`additionalProperties`, `additionalItems`, `properties`,
+   * `patternProperties`).
+   *
+   * The default implementation removes `undefined` and allow-any values
+   * (`true` or `{}`). Override it to keep explicit values such as
+   * `additionalProperties: true` or `additionalProperties: {}`.
+   *
+   * @default assignSchemaDefinitionOrRecord
+   */
+  assignSchemaDefinitionOrRecord?: SchemaDefinitionOrRecordAssigner;
+
+  /**
    * A mapping of schema keywords to merger functions.
    *
    * - A merger operates on **values of a single keyword** (`a`, `b` → merged value).
