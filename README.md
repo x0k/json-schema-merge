@@ -78,6 +78,18 @@ export type Intersector<T> = (a: T[], b: T[]) => T[];
 export type Merger<T> = (a: T, b: T) => T;
 
 /**
+ * A merger applied when no keyword-specific merger is registered.
+ *
+ * The schema key is provided so the merger can handle unknown or custom
+ * keywords differently. It may be a symbol.
+ */
+export type UnknownMerger = (
+  a: unknown,
+  b: unknown,
+  key: string | symbol
+) => unknown;
+
+/**
  * An assigner function operates at the schema-object level.
  * It receives the partially merged `target` and the original
  * `left` and `right` schemas.
@@ -131,10 +143,32 @@ export interface MergeOptions {
   deduplicateJsonSchemaDef?: Deduplicator<JSONSchema7Definition>;
 
   /**
-   * Fallback merger applied when no keyword-specific merger is defined.
+   * Default value-level merger for keywords that preserve a single value
+   * (for example `$id`, `description`, and `title`), and the default for
+   * `unknownMerger`.
    * @default identity
    */
   defaultMerger?: Merger<any>;
+
+  /**
+   * Merger applied when no keyword-specific merger is registered.
+   * Receives the schema key, including symbol keys.
+   * @default defaultMerger
+   */
+  unknownMerger?: UnknownMerger;
+
+  /**
+   * Assigner for schema definition or record keywords
+   * (`additionalProperties`, `additionalItems`, `properties`,
+   * `patternProperties`).
+   *
+   * The default implementation removes `undefined` and allow-any values
+   * (`true` or `{}`). Override it to keep explicit values such as
+   * `additionalProperties: true` or `additionalProperties: {}`.
+   *
+   * @default assignSchemaDefinitionOrRecord
+   */
+  assignSchemaDefinitionOrRecord?: SchemaDefinitionOrRecordAssigner;
 
   /**
    * A mapping of schema keywords to merger functions.
