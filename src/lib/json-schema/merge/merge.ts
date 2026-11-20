@@ -270,6 +270,18 @@ function intersectSchemaTypes(
 export type Merger<T> = (a: T, b: T) => T;
 
 /**
+ * A merger applied when no keyword-specific merger is registered.
+ *
+ * The schema key is provided so the merger can handle unknown or custom
+ * keywords differently. It may be a symbol.
+ */
+export type UnknownMerger = (
+  a: unknown,
+  b: unknown,
+  key: string | symbol
+) => unknown;
+
+/**
  * Creates a pattern subtractor that removes property names and names matching
  * the given patterns from the language of a pattern.
  *
@@ -393,10 +405,19 @@ export interface MergeOptions {
   deduplicateJsonSchemaDef?: Deduplicator<JSONSchema7Definition>;
 
   /**
-   * Fallback merger applied when no keyword-specific merger is defined.
+   * Default value-level merger for keywords that preserve a single value
+   * (for example `$id`, `description`, and `title`), and the default for
+   * `unknownMerger`.
    * @default identity
    */
   defaultMerger?: Merger<any>;
+
+  /**
+   * Merger applied when no keyword-specific merger is registered.
+   * Receives the schema key, including symbol keys.
+   * @default defaultMerger
+   */
+  unknownMerger?: UnknownMerger;
 
   /**
    * Assigner for schema definition or record keywords
@@ -466,6 +487,7 @@ export function createMerger({
   intersectJson = intersection,
   deduplicateJsonSchemaDef = identity,
   defaultMerger = identity,
+  unknownMerger = defaultMerger,
   assigners = [],
   checks = DEFAULT_CHECKS,
   mergers,
@@ -1043,9 +1065,15 @@ export function createMerger({
         continue;
       }
       // `MERGERS` has a null prototype, so inherited keys cannot leak in.
-      const merge = MERGERS[rKey] ?? defaultMerger;
+      const merge = MERGERS[rKey];
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      setOwn(target, rKey, merge(lv as never, rv as never) as never);
+      setOwn(
+        target,
+        rKey,
+        merge !== undefined
+          ? merge(lv as never, rv as never)
+          : (unknownMerger(lv, rv, rKey) as never)
+      );
     }
     for (const assign of assigners) {
       target = assign(target, left, right);
