@@ -1,5 +1,13 @@
 # @x0k/json-schema-merge
 
+## 1.2.0
+
+### Minor Changes
+
+- [#22](https://github.com/x0k/json-schema-merge/pull/22) [`195b017`](https://github.com/x0k/json-schema-merge/commit/195b0172f137d0623c8ceea25ce9250cf1960290) Thanks [@x0k](https://github.com/x0k)! - Add the `unknownMerger` option to `createMerger`. It is used when no keyword-specific merger is registered and receives the schema key, including symbol keys. It defaults to `defaultMerger`, preserving existing behavior.
+
+- [#22](https://github.com/x0k/json-schema-merge/pull/22) [`663a68a`](https://github.com/x0k/json-schema-merge/commit/663a68a444dea8d13004b6280625cddfedd738fe) Thanks [@x0k](https://github.com/x0k)! - Add the `assignSchemaDefinitionOrRecord` option to `createMerger` and export the default assigner. It lets consumers keep explicit allow-any values such as `additionalProperties: true` or `additionalProperties: {}` in the merged schema, including nested schemas and rebuilt `oneOf`/`anyOf` options (see [#21](https://github.com/x0k/json-schema-merge/issues/21)).
+
 ## 1.1.1
 
 ### Patch Changes
