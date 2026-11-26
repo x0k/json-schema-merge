@@ -461,6 +461,22 @@ export interface MergeOptions {
    * @default DEFAULT_CHECKS
    */
   checks?: Iterable<CheckEntry<SchemaKey, SchemaKey>>;
+  /**
+   * Merge `unevaluatedProperties` by the keys it sees.
+   *
+   * - One beside no in-place applicator is merged as the `additionalProperties`
+   *   it equals, and one beside an `additionalProperties` of its own, which
+   *   leaves it nothing to see, is dropped.
+   * - A pair where a closing `unevaluatedProperties` beside an in-place
+   *   applicator remains is kept unmerged as `{ allOf: [left, right] }`.
+   * - A key or item subschema no value can meet becomes `false` instead of
+   *   throwing.
+   *
+   * Pass the same option to `createShallowAllOfMerge`.
+   *
+   * @default false
+   */
+  rewriteUnevaluatedProperties?: boolean;
 }
 
 export const DEFAULT_CHECKS = [
@@ -481,6 +497,94 @@ export const DEFAULT_CHECKS = [
   ),
 ];
 
+const UNEVALUATED_BLOCKERS = [
+  "allOf",
+  "anyOf",
+  "oneOf",
+  "if",
+  "then",
+  "else",
+  "dependentSchemas",
+  "$ref",
+  "$dynamicRef",
+  "$recursiveRef",
+];
+
+/**
+ * Returns `schema` with its `unevaluatedProperties` as the `additionalProperties`
+ * it equals, or without it where its own `additionalProperties` already marks
+ * every leftover key as seen. With no in-place applicator beside it,
+ * `unevaluatedProperties` sees exactly the keys `properties` and
+ * `patternProperties` leave, as `additionalProperties` does.
+ */
+function rewriteUnevaluated(schema: JSONSchema7): JSONSchema7 {
+  const unevaluated: unknown = Reflect.get(schema, "unevaluatedProperties");
+  if (unevaluated === undefined) {
+    return schema;
+  }
+  const { unevaluatedProperties: _, ...rest } = schema as JSONSchema7 & {
+    unevaluatedProperties?: JSONSchema7Definition;
+  };
+  if (schema.additionalProperties !== undefined) {
+    return rest;
+  }
+  if (
+    UNEVALUATED_BLOCKERS.some(
+      (key) => Reflect.get(schema, key) !== undefined
+    ) ||
+    (schema.dependencies !== undefined &&
+      Object.values(schema.dependencies).some((d) => !Array.isArray(d)))
+  ) {
+    return schema;
+  }
+  return {
+    ...rest,
+    additionalProperties: unevaluated as JSONSchema7Definition,
+  };
+}
+
+/** A closing `unevaluatedProperties` the rewrite left, which merging would let see the other side's keys */
+function closesUnevaluated(schema: JSONSchema7): boolean {
+  const unevaluated = Reflect.get(schema, "unevaluatedProperties") as
+    | JSONSchema7Definition
+    | undefined;
+  return (
+    unevaluated !== undefined &&
+    schema.additionalProperties === undefined &&
+    !isAllowAnySchema(unevaluated)
+  );
+}
+
+/** `left` and `right` kept apart in an `allOf`, their definitions lifted so references still resolve */
+function unmerged(left: JSONSchema7, right: JSONSchema7): JSONSchema7 {
+  const {
+    $defs: lDefs,
+    definitions: lDefinitions,
+    ...l
+  } = left as JSONSchema7 & {
+    $defs?: Record<string, JSONSchema7Definition>;
+  };
+  const {
+    $defs: rDefs,
+    definitions: rDefinitions,
+    ...r
+  } = right as JSONSchema7 & {
+    $defs?: Record<string, JSONSchema7Definition>;
+  };
+  const result: JSONSchema7 & {
+    $defs?: Record<string, JSONSchema7Definition>;
+  } = {
+    allOf: [l, r],
+  };
+  if (lDefs !== undefined || rDefs !== undefined) {
+    result.$defs = { ...lDefs, ...rDefs };
+  }
+  if (lDefinitions !== undefined || rDefinitions !== undefined) {
+    result.definitions = { ...lDefinitions, ...rDefinitions };
+  }
+  return result;
+}
+
 export function createMerger({
   mergePatterns = simplePatternsMerger,
   isSubRegExp = Object.is,
@@ -493,6 +597,7 @@ export function createMerger({
   mergers,
   assignSchemaDefinitionOrRecord:
     assignSchemaDefinition = assignSchemaDefinitionOrRecord,
+  rewriteUnevaluatedProperties = false,
 }: MergeOptions = {}) {
   const subtractPattern = createPatternSubtractor(mergePatterns);
   function mergeArrayOfSchemaDefinitions(
@@ -512,6 +617,30 @@ export function createMerger({
     }
     return result;
   }
+
+  // Chosen once, so the default path calls the merge directly
+  const mergeKeyed: Merger<JSONSchema7Definition> = rewriteUnevaluatedProperties
+    ? (a, b) => {
+        try {
+          return mergeSchemaDefinitions(a, b);
+        } catch {
+          // No value can meet both, so no key or item can hold one
+          return false;
+        }
+      }
+    : mergeSchemaDefinitions;
+
+  const mergeKeyedArray: (
+    schemas: JSONSchema7Definition[]
+  ) => JSONSchema7Definition = rewriteUnevaluatedProperties
+    ? (schemas) => {
+        try {
+          return mergeArrayOfSchemaDefinitions(schemas);
+        } catch {
+          return false;
+        }
+      }
+    : mergeArrayOfSchemaDefinitions;
 
   function createProperty(
     constraints: (JSONSchema7 | true)[],
@@ -572,7 +701,7 @@ export function createMerger({
     if (l === 1) {
       return constraints[0];
     }
-    return mergeArrayOfSchemaDefinitions(constraints);
+    return mergeKeyedArray(constraints);
   }
 
   function assignPatternPropertiesAndAdditionalPropertiesMerge(
@@ -620,11 +749,7 @@ export function createMerger({
                 )
               : pattern;
           if (enrichedPattern === pattern) {
-            setOwn(
-              target,
-              pattern,
-              mergeSchemaDefinitions(schema, oppositeAdditional)
-            );
+            setOwn(target, pattern, mergeKeyed(schema, oppositeAdditional));
           } else {
             // The opposite `additionalProperties` does not apply to
             // properties explicitly declared on the opposite side or
@@ -633,7 +758,7 @@ export function createMerger({
             setOwn(
               target,
               enrichedPattern,
-              mergeSchemaDefinitions(schema, oppositeAdditional)
+              mergeKeyed(schema, oppositeAdditional)
             );
           }
         }
@@ -651,9 +776,7 @@ export function createMerger({
     assignSchemaDefinition(
       target,
       key,
-      l !== undefined && r !== undefined
-        ? mergeSchemaDefinitions(l, r)
-        : (l ?? r)
+      l !== undefined && r !== undefined ? mergeKeyed(l, r) : (l ?? r)
     );
   }
 
@@ -675,23 +798,20 @@ export function createMerger({
       assignSchemaDefinition(
         target,
         "properties",
-        mergeRecordsOfSchemaDefinitions(lProps, rProps)
+        mergeKeyedRecords(lProps, rProps)
       );
       assignSchemaDefinition(
         target,
         "patternProperties",
         lPatterns && rPatterns
-          ? mergeRecordsOfSchemaDefinitions(lPatterns, rPatterns)
+          ? mergeKeyedRecords(lPatterns, rPatterns)
           : (lPatterns ?? rPatterns)
       );
       assignAdditional(target, "additionalProperties", l, r);
       return target;
     }
     // Additional Properties
-    const additionalProperties = mergeSchemaDefinitions(
-      lAdditional,
-      rAdditional
-    );
+    const additionalProperties = mergeKeyed(lAdditional, rAdditional);
     assignSchemaDefinition(
       target,
       "additionalProperties",
@@ -802,7 +922,7 @@ export function createMerger({
           setOwn(
             patterns,
             mergePatterns(lKey, rKey),
-            mergeSchemaDefinitions(lPatterns![lKey]!, rPatterns![rKey]!)
+            mergeKeyed(lPatterns![lKey]!, rPatterns![rKey]!)
           );
         }
       });
@@ -873,7 +993,7 @@ export function createMerger({
           : [rItems.length, rAdditional, lItems];
       let i = 0;
       for (; i < commonLength; i++) {
-        itemsArray.push(mergeSchemaDefinitions(lItems[i]!, rItems[i]!));
+        itemsArray.push(mergeKeyed(lItems[i]!, rItems[i]!));
       }
       if (additional === false) {
         target.additionalItems = false;
@@ -882,9 +1002,7 @@ export function createMerger({
           additional === undefined || isAllowAnySchema(additional);
         for (; i < tail.length; i++) {
           itemsArray.push(
-            isAdditionalTruthy
-              ? tail[i]!
-              : mergeSchemaDefinitions(tail[i]!, additional)
+            isAdditionalTruthy ? tail[i]! : mergeKeyed(tail[i]!, additional)
           );
         }
         assignAdditional(target, "additionalItems", l, r);
@@ -903,16 +1021,14 @@ export function createMerger({
         // A schema-valued `items` applies to every element, including those
         // after the tuple, so it constrains `additionalItems` even when the
         // tuple side does not define one.
-        additional === undefined
-          ? item
-          : mergeSchemaDefinitions(additional, item)
+        additional === undefined ? item : mergeKeyed(additional, item)
       );
       for (let i = 0; i < arr.length; i++) {
-        itemsArray.push(mergeSchemaDefinitions(arr[i]!, item));
+        itemsArray.push(mergeKeyed(arr[i]!, item));
       }
     } else {
       delete target.additionalItems;
-      target.items = mergeSchemaDefinitions(lItems, rItems);
+      target.items = mergeKeyed(lItems, rItems);
     }
     return target;
   };
@@ -1031,6 +1147,13 @@ export function createMerger({
     if (isAllowAnySchema(right)) {
       return left;
     }
+    if (rewriteUnevaluatedProperties) {
+      left = rewriteUnevaluated(left);
+      right = rewriteUnevaluated(right);
+      if (closesUnevaluated(left) || closesUnevaluated(right)) {
+        return unmerged(left, right);
+      }
+    }
     let target = { ...left };
     const assigners = new Set<Assigner<JSONSchema7>>();
     const checks = new Set<(target: JSONSchema7) => void>();
@@ -1087,6 +1210,9 @@ export function createMerger({
   const mergeRecordsOfSchemaDefinitions = createRecordsMerge(
     mergeSchemaDefinitions
   );
+  const mergeKeyedRecords = rewriteUnevaluatedProperties
+    ? createRecordsMerge(mergeKeyed)
+    : mergeRecordsOfSchemaDefinitions;
 
   // A null prototype makes plain keyed reads safe: schema keys such as
   // `constructor` must not resolve to inherited members.

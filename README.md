@@ -199,6 +199,39 @@ export interface MergeOptions {
    * @default DEFAULT_CHECKS
    */
   checks?: Iterable<CheckEntry<SchemaKey, SchemaKey>>;
+
+  /**
+   * Merge `unevaluatedProperties` by the keys it sees.
+   *
+   * - One beside no in-place applicator (`allOf`, `anyOf`, `oneOf`,
+   *   `if`/`then`/`else`, `dependentSchemas`, a schema-valued `dependencies`,
+   *   `$ref`) is merged as the `additionalProperties` it equals, and one beside
+   *   an `additionalProperties` of its own, which leaves it nothing to see, is
+   *   dropped.
+   * - A pair where a closing `unevaluatedProperties` beside an in-place
+   *   applicator remains is kept unmerged as `{ allOf: [left, right] }`, their
+   *   `$defs` and `definitions` lifted so references still resolve.
+   * - A property, pattern, `additionalProperties` or item subschema no value can
+   *   meet becomes `false` instead of throwing.
+   *
+   * Pass the same option to `createShallowAllOfMerge` so the schema's own
+   * `unevaluatedProperties` applies to the merge of its `allOf`.
+   *
+   * @default false
+   */
+  rewriteUnevaluatedProperties?: boolean;
+}
+```
+
+`createShallowAllOfMerge` takes an optional second argument:
+
+```ts
+interface ShallowAllOfMergeOptions {
+  /**
+   * Pair with the merger's `rewriteUnevaluatedProperties`.
+   * @default false
+   */
+  rewriteUnevaluatedProperties?: boolean;
 }
 ```
 

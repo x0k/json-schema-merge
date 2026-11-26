@@ -1,4 +1,4 @@
-import type { JSONSchema7Definition } from "json-schema";
+import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 
 import { transformSchemaDefinition } from "../transform.ts";
 
@@ -22,13 +22,54 @@ function getAllOfSchemas(
   return result;
 }
 
+export interface ShallowAllOfMergeOptions {
+  /**
+   * Pair with the merger's `rewriteUnevaluatedProperties`: apply the schema's
+   * own `unevaluatedProperties` to the merge of its `allOf` rather than merging
+   * it with the entries, since it sees the keys they evaluate.
+   *
+   * @default false
+   */
+  rewriteUnevaluatedProperties?: boolean;
+}
+
 export function createShallowAllOfMerge(
   mergeArrayOfSchemaDefinitions: (
     defs: JSONSchema7Definition[]
-  ) => JSONSchema7Definition
+  ) => JSONSchema7Definition,
+  { rewriteUnevaluatedProperties = false }: ShallowAllOfMergeOptions = {}
 ) {
-  return (schema: JSONSchema7Definition) =>
-    mergeArrayOfSchemaDefinitions(getAllOfSchemas(schema));
+  if (!rewriteUnevaluatedProperties) {
+    return (schema: JSONSchema7Definition) =>
+      mergeArrayOfSchemaDefinitions(getAllOfSchemas(schema));
+  }
+  return (schema: JSONSchema7Definition) => {
+    const unevaluated =
+      typeof schema === "boolean" || schema.allOf === undefined
+        ? undefined
+        : (Reflect.get(schema, "unevaluatedProperties") as
+            | JSONSchema7Definition
+            | undefined);
+    if (unevaluated === undefined) {
+      return mergeArrayOfSchemaDefinitions(getAllOfSchemas(schema));
+    }
+    const { unevaluatedProperties: _, ...rest } = schema as JSONSchema7 & {
+      unevaluatedProperties?: JSONSchema7Definition;
+    };
+    const schemas = getAllOfSchemas(rest);
+    const merged = mergeArrayOfSchemaDefinitions(schemas);
+    // An `additionalProperties` or `unevaluatedProperties` of the schema or an
+    // entry marks every key it reaches as seen, leaving this one nothing
+    const seesNothing = schemas.some(
+      (entry) =>
+        typeof entry !== "boolean" &&
+        (entry.additionalProperties !== undefined ||
+          Reflect.get(entry, "unevaluatedProperties") !== undefined)
+    );
+    return seesNothing || typeof merged === "boolean"
+      ? merged
+      : ({ ...merged, unevaluatedProperties: unevaluated } as JSONSchema7);
+  };
 }
 
 export function createDeepAllOfMerge(
