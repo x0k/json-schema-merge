@@ -106,10 +106,9 @@ describe("prototype-named keys", () => {
   });
 
   it("keeps prototype-named extension keywords as own properties", () => {
-    const result = mergeSchemaDefinitions(
-      { type: "object" },
-      { constructor: { type: "string" } }
-    ) as JSONSchema7;
+    const result = mergeSchemaDefinitions({ type: "object" }, {
+      constructor: { type: "string" },
+    } as JSONSchema7) as JSONSchema7;
     expect(Object.hasOwn(result, "constructor")).toBe(true);
     expect(result.constructor).toEqual({ type: "string" });
   });

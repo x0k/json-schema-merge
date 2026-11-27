@@ -2,7 +2,7 @@ import type { JSONSchema7Definition } from "json-schema";
 
 import { transformSchemaDefinition } from "../transform.ts";
 
-function getAllOfSchemas(
+export function flattenAllOfSchemaDefinitions(
   schema: JSONSchema7Definition
 ): JSONSchema7Definition[] {
   const result: JSONSchema7Definition[] = [];
@@ -28,7 +28,7 @@ export function createShallowAllOfMerge(
   ) => JSONSchema7Definition
 ) {
   return (schema: JSONSchema7Definition) =>
-    mergeArrayOfSchemaDefinitions(getAllOfSchemas(schema));
+    mergeArrayOfSchemaDefinitions(flattenAllOfSchemaDefinitions(schema));
 }
 
 export function createDeepAllOfMerge(

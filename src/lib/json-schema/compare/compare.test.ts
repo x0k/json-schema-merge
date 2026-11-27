@@ -1176,7 +1176,9 @@ describe("comparison", () => {
     });
 
     it("compares prototype-named extension keys as own properties", () => {
-      const schema = { constructor: { type: "string" } };
+      const schema = {
+        constructor: { type: "string" },
+      } as JSONSchema7;
       expect(typeof compareSchemaDefinitions(schema, {})).toBe("number");
       expect(Math.sign(compareSchemaDefinitions(schema, {}))).toBe(1);
       expect(Math.sign(compareSchemaDefinitions({}, schema))).toBe(-1);

@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.test.tsbuildinfo",
+    // Tests use `using`/`Symbol.dispose` and `structuredClone`.
+    "lib": ["es2023", "esnext.disposable", "dom"]
+  },
+  "include": ["src"],
+  "exclude": ["**/*.bench.*"]
+}
