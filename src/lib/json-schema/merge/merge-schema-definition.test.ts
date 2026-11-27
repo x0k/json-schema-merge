@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { isAllowAnySchema } from "../json-schema.ts";
 import {
+  createShallowAllOfMerge,
+  flattenAllOfSchemaDefinitions,
+} from "./all-of-merge.ts";
+import {
   createMerger,
   ITEMS_ASSIGNER_KEYS,
   PROPERTIES_ASSIGNER_KEYS,
@@ -172,6 +176,43 @@ function createRewriteMerger() {
   return merger;
 }
 
+function createRewriteShallowAllOfMerge(
+  mergeArrayOfSchemaDefinitions: (
+    defs: JSONSchema7Definition[]
+  ) => JSONSchema7Definition
+) {
+  const shallowMerge = createShallowAllOfMerge(mergeArrayOfSchemaDefinitions);
+  return (schema: JSONSchema7Definition) => {
+    if (typeof schema === "boolean" || schema.allOf === undefined) {
+      return shallowMerge(schema);
+    }
+    const unevaluated = Reflect.get(schema, "unevaluatedProperties") as
+      | JSONSchema7Definition
+      | undefined;
+    if (unevaluated === undefined) {
+      return shallowMerge(schema);
+    }
+    // The schema holding `allOf` sees every entry, so its own
+    // `unevaluatedProperties` is set aside and put back on the result.
+    const { unevaluatedProperties: _, ...rest } = schema as JSONSchema7 & {
+      unevaluatedProperties?: JSONSchema7Definition;
+    };
+    const schemas = flattenAllOfSchemaDefinitions(rest);
+    const merged = mergeArrayOfSchemaDefinitions(schemas);
+    // An `additionalProperties` or `unevaluatedProperties` of the schema or an
+    // entry leaves this one with nothing to see.
+    const seesNothing = schemas.some(
+      (entry) =>
+        typeof entry !== "boolean" &&
+        (entry.additionalProperties !== undefined ||
+          Reflect.get(entry, "unevaluatedProperties") !== undefined)
+    );
+    return seesNothing || typeof merged === "boolean"
+      ? merged
+      : ({ ...merged, unevaluatedProperties: unevaluated } as JSONSchema7);
+  };
+}
+
 describe("schemaDefinitionMerger option", () => {
   it("returns the default internals for wrapping", () => {
     const merger = createMerger();
@@ -271,5 +312,34 @@ describe("schemaDefinitionMerger option", () => {
     expect(() =>
       mergeArrayOfSchemaDefinitions([{ type: "string" }, { type: "number" }])
     ).toThrow(/incompatible types/);
+  });
+
+  it("restores the parent's own unevaluatedProperties after merging allOf", () => {
+    const { mergeArrayOfSchemaDefinitions } = createRewriteMerger();
+    const shallowMerge = createRewriteShallowAllOfMerge(
+      mergeArrayOfSchemaDefinitions
+    );
+    expect(
+      shallowMerge({
+        allOf: [{ properties: { a: {} } }, { properties: { b: {} } }],
+        unevaluatedProperties: false,
+      } as JSONSchema7)
+    ).toEqual({
+      properties: { a: {}, b: {} },
+      unevaluatedProperties: false,
+    });
+  });
+
+  it("drops the parent's unevaluatedProperties when an entry sees every key", () => {
+    const { mergeArrayOfSchemaDefinitions } = createRewriteMerger();
+    const shallowMerge = createRewriteShallowAllOfMerge(
+      mergeArrayOfSchemaDefinitions
+    );
+    expect(
+      shallowMerge({
+        allOf: [{ additionalProperties: true }, { properties: { a: {} } }],
+        unevaluatedProperties: false,
+      } as JSONSchema7)
+    ).toEqual({ properties: { a: {} } });
   });
 });
