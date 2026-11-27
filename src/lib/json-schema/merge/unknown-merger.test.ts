@@ -1,14 +1,17 @@
+import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
-import { createMerger } from "./merge.ts";
+import { createMerger, type MergeOptions } from "./merge.ts";
 
 const customSymbol = Symbol("custom");
 
-declare module "json-schema" {
-  interface JSONSchema7 {
-    "x-custom"?: string;
-    [customSymbol]?: string;
-  }
+type SchemaWithCustomKey = JSONSchema7 & {
+  "x-custom"?: string;
+  [customSymbol]?: string;
+};
+
+function schemaWithCustomKey(schema: SchemaWithCustomKey) {
+  return schema;
 }
 
 describe("unknownMerger option", () => {
@@ -22,7 +25,10 @@ describe("unknownMerger option", () => {
     });
 
     expect(
-      mergeSchemaDefinitions({ "x-custom": "left" }, { "x-custom": "right" })
+      mergeSchemaDefinitions(
+        schemaWithCustomKey({ "x-custom": "left" }),
+        schemaWithCustomKey({ "x-custom": "right" })
+      )
     ).toEqual({ "x-custom": "right" });
     expect(keys).toEqual(["x-custom"]);
   });
@@ -38,8 +44,8 @@ describe("unknownMerger option", () => {
 
     expect(
       mergeSchemaDefinitions(
-        { type: "object", [customSymbol]: "left" },
-        { type: "object", [customSymbol]: "right" }
+        schemaWithCustomKey({ type: "object", [customSymbol]: "left" }),
+        schemaWithCustomKey({ type: "object", [customSymbol]: "right" })
       )
     ).toEqual({ type: "object", [customSymbol]: "right" });
     expect(keys).toEqual([customSymbol]);
@@ -51,7 +57,10 @@ describe("unknownMerger option", () => {
     });
 
     expect(
-      mergeSchemaDefinitions({ "x-custom": "left" }, { "x-custom": "right" })
+      mergeSchemaDefinitions(
+        schemaWithCustomKey({ "x-custom": "left" }),
+        schemaWithCustomKey({ "x-custom": "right" })
+      )
     ).toEqual({ "x-custom": "right" });
   });
 
@@ -67,8 +76,8 @@ describe("unknownMerger option", () => {
 
     expect(
       mergeSchemaDefinitions(
-        { description: "left", "x-custom": "left" },
-        { description: "right", "x-custom": "right" }
+        schemaWithCustomKey({ description: "left", "x-custom": "left" }),
+        schemaWithCustomKey({ description: "right", "x-custom": "right" })
       )
     ).toEqual({ description: "right", "x-custom": "right" });
     expect(keys).toEqual(["x-custom"]);
@@ -82,12 +91,15 @@ describe("unknownMerger option", () => {
         return b;
       },
       mergers: {
-        "x-custom": (a, b) => `${a}/${b}`,
-      },
+        "x-custom": (a: string, b: string) => `${a}/${b}`,
+      } as MergeOptions["mergers"],
     });
 
     expect(
-      mergeSchemaDefinitions({ "x-custom": "left" }, { "x-custom": "right" })
+      mergeSchemaDefinitions(
+        schemaWithCustomKey({ "x-custom": "left" }),
+        schemaWithCustomKey({ "x-custom": "right" })
+      )
     ).toEqual({ "x-custom": "left/right" });
     expect(keys).toEqual([]);
   });
@@ -96,7 +108,10 @@ describe("unknownMerger option", () => {
     const { mergeSchemaDefinitions } = createMerger();
 
     expect(
-      mergeSchemaDefinitions({ "x-custom": "left" }, { "x-custom": "right" })
+      mergeSchemaDefinitions(
+        schemaWithCustomKey({ "x-custom": "left" }),
+        schemaWithCustomKey({ "x-custom": "right" })
+      )
     ).toEqual({ "x-custom": "left" });
   });
 });

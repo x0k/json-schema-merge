@@ -39,14 +39,15 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc && publint",
+    "build": "tsc -b tsconfig.build.json && publint",
     "test": "vitest run --exclude '.direnv/**'",
     "bench": "vitest bench --exclude '.direnv/**'",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b tsconfig.build.json --noEmit",
+    "typecheck:test": "tsc -b tsconfig.test.json --noEmit",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint",
-    "check": "npm run lint && npm run format:check && npm run typecheck && npm run test",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run typecheck:test && npm run test",
     "ci:build": "npm run check && npm run build",
     "ci:version": "changeset version && pnpm install --no-frozen-lockfile"
   },

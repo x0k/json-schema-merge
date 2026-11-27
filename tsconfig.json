@@ -1,25 +1,7 @@
 {
-  "compilerOptions": {
-    "target": "esnext",
-    "lib": ["es2023"],
-    "moduleDetection": "force",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "resolveJsonModule": true,
-    "strict": true,
-    "noUnusedLocals": true,
-    "declaration": true,
-    "esModuleInterop": true,
-    "isolatedModules": true,
-    "rewriteRelativeImportExtensions": true,
-    "erasableSyntaxOnly": true,
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true,
-    "rootDir": "./src",
-    "outDir": "dist",
-    "sourceMap": true,
-    "declarationMap": true
-  },
-  "include": ["src"],
-  "exclude": ["**/*.test.*", "**/*.spec.*", "**/*.bench.*"]
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.build.json" },
+    { "path": "./tsconfig.test.json" }
+  ]
 }

@@ -121,7 +121,7 @@ export function assignSchemaDefinitionOrRecord<
   }
 }
 
-const PROPERTIES_ASSIGNER_KEYS = [
+export const PROPERTIES_ASSIGNER_KEYS = [
   "properties",
   "patternProperties",
   "additionalProperties",
@@ -207,7 +207,7 @@ function recordPatternMatches(
   }
 }
 
-const ITEMS_ASSIGNER_KEYS = [
+export const ITEMS_ASSIGNER_KEYS = [
   "items",
   "additionalItems",
 ] as const satisfies SchemaKey[];
@@ -350,6 +350,13 @@ export function check<A extends SchemaKey, B extends SchemaKey>(
   return [a, b, check];
 }
 
+/**
+ * A mapping of schema keywords to merger functions.
+ */
+type Mergers = Partial<{
+  [K in SchemaKey]: Merger<Exclude<JSONSchema7[K], undefined>>;
+}>;
+
 function createChecksMap(checks: Iterable<CheckEntry<SchemaKey, SchemaKey>>) {
   const map = new Map<
     SchemaKey,
@@ -420,6 +427,18 @@ export interface MergeOptions {
   unknownMerger?: UnknownMerger;
 
   /**
+   * Merger for pairs of schema definitions, including `false` and allow-any
+   * schemas (`true` or `{}`).
+   *
+   * It replaces the default merge at every level, so nested merges call it
+   * again. The `mergeSchemaDefinitions` function returned by `createMerger`
+   * performs the default merge and can be used for delegation.
+   *
+   * @default defaultMergeSchemaDefinitions
+   */
+  schemaDefinitionMerger?: Merger<JSONSchema7Definition>;
+
+  /**
    * Assigner for schema definition or record keywords
    * (`additionalProperties`, `additionalItems`, `properties`,
    * `patternProperties`).
@@ -438,9 +457,7 @@ export interface MergeOptions {
    * - A merger operates on **values of a single keyword** (`a`, `b` → merged value).
    * - When provided, a custom merger **overrides the default merger** for that keyword.
    */
-  mergers?: Partial<{
-    [K in SchemaKey]: Merger<Exclude<JSONSchema7[K], undefined>>;
-  }>;
+  mergers?: Mergers;
 
   /**
    * A collection of keyword groups with associated assigner functions.
@@ -491,10 +508,13 @@ export function createMerger({
   assigners = [],
   checks = DEFAULT_CHECKS,
   mergers,
+  schemaDefinitionMerger,
   assignSchemaDefinitionOrRecord:
     assignSchemaDefinition = assignSchemaDefinitionOrRecord,
 }: MergeOptions = {}) {
   const subtractPattern = createPatternSubtractor(mergePatterns);
+  const mergeSchemaDefinitions =
+    schemaDefinitionMerger ?? defaultMergeSchemaDefinitions;
   function mergeArrayOfSchemaDefinitions(
     schemas: JSONSchema7Definition[]
   ): JSONSchema7Definition {
@@ -1015,7 +1035,7 @@ export function createMerger({
 
   const CHECKS_MAP = createChecksMap(checks);
 
-  function mergeSchemaDefinitions(
+  function defaultMergeSchemaDefinitions(
     left: JSONSchema7Definition,
     right: JSONSchema7Definition
   ) {
@@ -1087,12 +1107,24 @@ export function createMerger({
   const mergeRecordsOfSchemaDefinitions = createRecordsMerge(
     mergeSchemaDefinitions
   );
+  const mergeDependencies = createRecordsMerge<
+    JSONSchema7Definition | string[]
+  >((a, b) => {
+    if (Array.isArray(a)) {
+      if (Array.isArray(b)) {
+        return union(a, b);
+      }
+      return mergeSchemaDefinitions(b, { required: a });
+    }
+    if (Array.isArray(b)) {
+      return mergeSchemaDefinitions(a, { required: b });
+    }
+    return mergeSchemaDefinitions(a, b);
+  });
 
   // A null prototype makes plain keyed reads safe: schema keys such as
   // `constructor` must not resolve to inherited members.
-  const MERGERS: {
-    [K in SchemaKey]?: Merger<Exclude<JSONSchema7[K], undefined>>;
-  } = Object.assign(Object.create(null), {
+  const MERGERS: Mergers = Object.assign(Object.create(null), {
     $id: defaultMerger,
     $ref: defaultMerger,
     $schema: defaultMerger,
@@ -1171,18 +1203,7 @@ export function createMerger({
     oneOf: mergeArraysOfSchemaDefinition,
     allOf: (l, r) => deduplicateJsonSchemaDef(l.concat(r)),
     propertyNames: mergeSchemaDefinitions,
-    dependencies: createRecordsMerge((a, b) => {
-      if (Array.isArray(a)) {
-        if (Array.isArray(b)) {
-          return union(a, b);
-        }
-        return mergeSchemaDefinitions(b, { required: a });
-      }
-      if (Array.isArray(b)) {
-        return mergeSchemaDefinitions(a, { required: b });
-      }
-      return mergeSchemaDefinitions(a, b);
-    }),
+    dependencies: mergeDependencies,
     examples: (l, r) => {
       // https://datatracker.ietf.org/doc/html/draft-handrews-json-schema-validation-01#section-10.4
       if (!Array.isArray(l) || !Array.isArray(r)) {
@@ -1218,13 +1239,18 @@ export function createMerger({
     required: union,
     ...mergers,
   } satisfies {
-    [K in Exclude<SchemaKey, AssignerKey>]-?: Merger<
+    [K in Exclude<SchemaKey, AssignerKey>]: Merger<
       Exclude<JSONSchema7[K], undefined>
     >;
   });
 
   return {
-    mergeSchemaDefinitions,
+    mergeSchemaDefinitions: defaultMergeSchemaDefinitions,
     mergeArrayOfSchemaDefinitions,
+    mergeRecordsOfSchemaDefinitions,
+    mergeArraysOfSchemaDefinition,
+    mergeDependencies,
+    propertiesAssigner,
+    itemsAssigner,
   };
 }

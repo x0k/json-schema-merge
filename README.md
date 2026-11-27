@@ -158,6 +158,18 @@ export interface MergeOptions {
   unknownMerger?: UnknownMerger;
 
   /**
+   * Merger for pairs of schema definitions, including `false` and allow-any
+   * schemas (`true` or `{}`).
+   *
+   * It replaces the default merge at every level, so nested merges call it
+   * again. The `mergeSchemaDefinitions` function returned by `createMerger`
+   * performs the default merge and can be used for delegation.
+   *
+   * @default defaultMergeSchemaDefinitions
+   */
+  schemaDefinitionMerger?: Merger<JSONSchema7Definition>;
+
+  /**
    * Assigner for schema definition or record keywords
    * (`additionalProperties`, `additionalItems`, `properties`,
    * `patternProperties`).
